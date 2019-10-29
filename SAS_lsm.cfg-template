@@ -1,0 +1,154 @@
+##########################################################################################################################################
+## BEGIN MISCELLANEOUS VARIABLES
+
+## REQUIRED: CONFIGURATION DIRECTORY (E.G. /opt/SAS/94/production/config/Lev1)
+## if you have unique CONFIGURATION directories for the TIERs in your deployment, you can define the CONFIGDIR value before each TIER definition
+CONFIGDIR=
+
+## REQUIRED: if you have unique INSTANCE OWNER userids for the TIERS in your deployment, you can define the INSTID value before each TIER definition
+INSTID=
+
+## REQUIRED: NUMBER OF TIERS IN THIS CONFIGURATION FILE
+MAXTIERS=
+
+# REQUIRED/CONFIGURABLE: SSH OPTIONS
+SSHOPTIONS="-q -o StrictHostKeyChecking=no -o PasswordAuthentication=no"
+
+## REQUIRED/CONFIGURABLE NUMBER OF RETRIES
+MAXRETRY=10
+
+## REQUIRED/CONFIGURABLE: SLEEP INTERVAL IN SECONDS PER RETRY
+SLEEP=6
+ 
+## REQUIRED/CONFIGURABLE: STATUS REPORT ROOT DIRECTORY 
+STATUSROOT=/tmp
+
+## REQUIRED/CONFIGURABLE: offset in hours that is used to trim centralized log files 
+TRIMOFFSET=1
+
+## OPTIONAL: SAS ADMINISTRATOR EMAIL ADDRESS(ES) 
+## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
+#SASADMIN="ADDRESS1 ADDRESS2 ADDRESSN"  
+
+## END MISCELLANEOUS VARIABLES
+##########################################################################################################################################
+
+    
+##########################################################################################################################################
+## BEGIN OPTIONAL Metadata horizontal clustering services Tier Descriptor Template 
+## NEED AT LEAST 3 OF TIERTYPE MDCN AND 1 OF TIERTYPE MDCV 
+## REMOVE # in COLUMN 1 OF TIER VARIABLES TO ACTIVATE 
+#TIERNAME[1]='Metadata cluster node (MDCN) 1 of 3'
+#TIERINST[1]=${INSTID}
+#TIERHOST[1]=HOSTNAME FOR TIER
+#TIERSTAR[1]="\"nohup ${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh start >/dev/null 2>&1 &\""
+#TIERSTOP[1]="${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh stopCluster"
+#TIERREST[1]="\"nohup ${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh restart >/dev/null 2>&1 &\""
+#TIERSTAT[1]="${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh status 2>&1"
+#TIERSTAS[1]='Server appears to be stopped'
+#TIERSTOS[1]='is RUNNING on'
+#TIERLOGD[1]=${CONFIGDIR}
+#TIERTYPE[1]='MDCN'
+
+#TIERNAME[2]='Metadata cluster node (MDCN) 2 of 3'
+#TIERINST[2]=${INSTID}
+#TIERHOST[2]=HOSTNAME FOR TIER
+#TIERSTAR[2]="\"nohup ${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh start >/dev/null 2>&1 &\""
+#TIERSTOP[2]="${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh stopCluster"
+#TIERREST[2]="\"nohup ${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh restart >/dev/null 2>&1 &\""
+#TIERSTAT[2]="${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh status 2>&1"
+#TIERSTAS[2]='Server appears to be stopped'
+#TIERSTOS[2]='is RUNNING on'
+#TIERLOGD[2]=${CONFIGDIR}
+#TIERTYPE[2]='MDCN'
+
+#TIERNAME[3]='Metadata cluster node (MDCN) 3 of 3'
+#TIERINST[3]=${INSTID}
+#TIERHOST[3]=HOSTNAME FOR TIER
+#TIERSTAR[3]="\"nohup ${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh start >/dev/null 2>&1 &\""
+#TIERSTOP[3]="${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh stopCluster"
+#TIERREST[3]="\"nohup ${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh restart >/dev/null 2>&1 &\""
+#TIERSTAT[3]="${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh status 2>&1"
+#TIERSTAS[3]='Server appears to be stopped'
+#TIERSTOS[3]='is RUNNING on'
+#TIERLOGD[3]=${CONFIGDIR}
+#TIERTYPE[3]='MDCN'
+
+
+#TIERNAME[4]='Metadata cluster validation (MDCV)'
+#TIERINST[4]=${TIERINST[1]}
+#TIERHOST[4]=${TIERHOST[1]}
+#TIERSTAR[4]="${TIERSTAR[1]}"
+#TIERSTOP[4]="${TIERSTOP[1]}"
+#TIERREST[4]="${TIERREST[1]}"
+#TIERSTAT[4]="${TIERSTAT[1]}"
+#TIERSTAS[4]="${TIERSTAS[1]}"
+#TIERSTOS[4]="${TIERSTOS[1]}"
+#TIERLOGD[4]=${TIERLOGD[1]}
+#TIERTYPE[4]='MDCV'
+
+## END OPTIONAL Metadata horizontal clustering services Tier Descriptor Template
+##########################################################################################################################################
+
+
+##########################################################################################################################################
+## BEGIN OPTIONAL sas.servers services Tier Descriptor Template
+## REMOVE # in COLUMN 1 OF TIER VARIABLES AND REPLACE ARRAY ELEMENT VALUE "N" WITH SEQUENTIAL NUMERIC VALUE TO ACTIVATE 
+
+#TIERNAME[N]='TIER NAME'
+#TIERINST[N]=${INSTID}
+#TIERHOST[N]=HOSTNAME FOR TIER
+#TIERSTAR[N]="${CONFIGDIR}/sas.servers start"
+#TIERSTOP[N]="${CONFIGDIR}/sas.servers stop"
+#TIERREST[N]="${CONFIGDIR}/sas.servers restart"
+#TIERSTAT[N]="${CONFIGDIR}/sas.servers status"
+#TIERSTAS[N]='is NOT up'
+#TIERSTOS[N]='is UP'
+#TIERLOGD[N]=${CONFIGDIR}
+#TIERTYPE[N]='standard'
+
+## END OPTIONAL sas.servers services Tier Descriptor Template
+##########################################################################################################################################
+
+
+##########################################################################################################################################
+## BEGIN OPTIONAL massively parallel processing SAS LASR services Tier Descriptor Template
+## REMOVE # in COLUMN 1 OF TIER VARIABLES AND REPLACE ARRAY ELEMENT VALUE "N" WITH SEQUENTIAL NUMERIC VALUE TO ACTIVATE 
+
+#SASHD=ABSOLUTE DIRECTORY TO SAS SHELL SCRIPT E.G.: /opt/SAS/94/production/SASHome/SASFoundation/9.4
+#LASRHD=ABSOLUTE DIRECTORY LASR TOOLS-DEPLOYMENT DIRECTORY E.G. /usr/local/etc/SAS/LASR
+#LASRPORT=LASR PORT NUMBER
+#TIERNAME[N]='TIERNAME'
+#TIERINST[N]=${INSTID}
+#TIERHOST[N]=HOSTNAME FOR TIER
+#TIERSTAR[N]="${SASHD}/sas ${LASRHD}/mpp_start.sas -log ${LASRHD}/logs/${LASRPORT} -sysparm ${LASRPORT}"
+#TIERSTOP[N]="${SASHD}/sas ${LASRHD}/mpp_stop.sas -log ${LASRHD}/logs/${LASRPORT} -sysparm ${LASRPORT}"
+#TIERREST[N]="${SASHD}/sas ${LASRHD}/mpp_restart.sas -log ${LASRHD}/logs/${LASRPORT} -sysparm ${LASRPORT}"
+#TIERSTAT[N]="${SASHD}/sas ${LASRHD}/mpp_checklasr.sas -log ${LASRHD}/logs/${LASRPORT} -sysparm ${LASRPORT}"
+#TIERSTAS[N]='LASR DOWN'
+#TIERSTOS[N]='LASR UP'
+#TIERLOGD[N]=${LASRHD}/${LASRPORT}
+#TIERTYPE[N]='standard'
+
+## END OPTIONAL massively parallel processing SAS LASR services Tier Descriptor Template
+##########################################################################################################################################
+
+
+##########################################################################################################################################
+## BEGIN OPTIONAL user-defined services Tier Descriptor Template
+## REMOVE # in COLUMN 1 OF TIER VARIABLES AND REPLACE ARRAY ELEMENT VALUE "N" WITH SEQUENTIAL NUMERIC VALUE TO ACTIVATE 
+
+#TIERNAME[N]='TIERNAME'
+#TIERINST[N]=${INSTID}
+#TIERHOST[N]=HOSTNAME FOR TIER
+#TIERSTAR[N]="USER DEFINED SERVICE START COMMAND"
+#TIERSTOP[N]="USER DEFINED SERVICE STOP COMMAND"
+#TIERREST[N]="USER DEFINED SERVICE RESTART COMMAND"
+#TIERSTAT[N]="USER DEFINED SERVICE STATUS COMMAND"
+#TIERSTAS[N]='STDOUT/STDERR MESSAGE THAT INDICATES SERVICE IS DOWN'
+#TIERSTOS[N]='STDOUT/STDERR MESSAGE THAT INDICATES SERVICE IS UP'
+#TIERLOGD[N]=${CONFIGDIR}
+#TIERTYPE[N]='standard'
+
+## END OPTIONAL user-defined services Tier Descriptor Template
+##########################################################################################################################################

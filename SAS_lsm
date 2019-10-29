@@ -1,0 +1,1175 @@
+#
+# Copyright 2018 SAS Institute Inc.
+# SAS Campus Drive, Cary, North Carolina 27513, USA.
+# All rights reserved.
+#
+#
+# Version 3.0
+#
+# This script automates the management of UNIX/Linux based multi-tiered services.
+# Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
+# 
+# REVISION HISTORY
+# ----------------
+#
+# Date        Developer   		Change
+# ----        ---------  	 	------
+# 2016-07-11  Clifford J. Meyers	v1.0 birthday
+# 2017-06-01  Clifford J. Meyers	v2.0 add log capture functionality
+# 2018-01-12  Clifford J. Meyers	v3.0 add metadata clustering, mpp LASR services, user-defined services, log analysis
+# 2019-01-04  Clifford J. Meyers        v3.0 remove ssh requirement when SAS_lsm is located on the same physical server as a deployment tier
+# 2018-04-20  Greg W. Arledge           v3.0 add Solaris compatibility
+#
+
+function usage 
+{
+	echo ""
+	echo "<<USAGE>> [bash | sh] ${PROG} [-a <NUM> | -o <NUM> | -s] -c <CFG> [-e]"
+	echo ""
+	echo "  WHERE"
+	echo "    -a NUM     start deployment tier services from tier NUM to MAXTIERS"
+	echo "    -o NUM     stop deployment tier services from MAXTIERS to tier NUM"
+	echo "    -s         provide status of all deployment tier services"
+	echo "    -c CFG     specify configuration file"
+	echo "    -e         optionally extract potential tier error logs to a centralized location under !STATUSROOT/!CFG/"
+	echo ""
+	echo "  NOTE"
+	echo "    -a, -o, and -s options are not to be run concurrently" 
+	echo ""
+	exit 1
+}
+
+function operating_system_customize
+{
+        OSFLAVOR=`uname`
+        if [ ${OSFLAVOR} = "SunOS" ]
+          then  shopt -s expand_aliases
+                alias ps='/usr/bin/ps'
+                # egrep  /usr/xpg4/bin/
+                # whoami /usr/ucb/
+                PATH=/usr/xpg4/bin:/usr/ucb:$PATH
+        fi
+}
+
+function initialize 
+{
+	cd ${DIR}
+	CHECK=`echo "${PWD}" | grep -c "Utilities"`
+	if [ ${CHECK} -ne 0 ]
+	  then	echo "<<ERROR>> cannot execute ${PROG} from directory [${PWD}]"
+		exit 1
+	fi
+	cd - >/dev/null 2>&1
+	operating_system_customize
+	if [ $(whoami) = "root" ]
+	  then	echo "<<ERROR>> cannot execute ${PROG} as root"
+		exit 1
+	fi
+	if [ ! -f "${CFGFILE}" -o ! -r "${CFGFILE}" ]
+	  then	echo "<<ERROR>> unreadable configuration file [${CFGFILE}] in [${PWD}]"
+		usage
+	  else	if [ "${CFGFILE}" = "${CFGFILE##*/}" ]
+		  then	. ${DIR}/${CFGFILE}
+		  else	. ${CFGFILE}
+		fi
+		STATUSROOT=${STATUSROOT:-/tmp}
+		if [ ! -w "${STATUSROOT}" ]
+		  then	echo "<<ERROR>> status report root directory [${STATUSROOT}] is not writable"
+			exit 1
+		  else	STATUSDIR=${STATUSROOT}/${CFGFILE##*/}
+			CHECK=`echo "${STATUSDIR}" | grep -c "Utilities"`
+        		if [ ${CHECK} -ne 0 ]
+          		  then  echo "<<ERROR>> cannot store reports and logfiles within directory [${STATUSDIR}]"
+                		exit 1
+			fi
+			mkdir -p ${STATUSDIR} >/dev/null 2>&1
+			if [ $? -ne 0 ]
+		  	  then	echo "<<ERROR>> Cannot create STATUSDIR directory [${STATUSDIR}]"
+				exit 1
+			  else	if [ ! -f ${STATUSDIR}/.lastaction ]
+	   			  then	echo "stop:0" > ${STATUSDIR}/.lastaction
+				fi
+			fi
+			THISHOST=`hostname | awk -F\. '{ print $1 }'`
+			LOGFILESBOM=${STATUSDIR}/logfiles.BOM
+			LOGFILESANALYSIS=${STATUSDIR}/logfiles.ANALYSIS
+			LOGFILES=${STATUSDIR}/logfiles
+			REPORT=${STATUSDIR}/report.${ACTION}
+			OUTFILE=${STATUSDIR}/${PROG}.outfile.${RANDOM}
+			rm -f ${STATUSDIR}/${PROG}.* ${STATUSDIR}/SDW*.log >/dev/null 2>&1
+			if tty -s
+          		  then	RUNFROM=0
+          		  else  RUNFROM=1
+        		fi
+        		IS_RUNNING=`ps -fu $(whoami) | grep ${PROG} | egrep -v $$ | grep -vc grep`
+        		if [ "${IS_RUNNING}" -gt ${RUNFROM} ]
+          	  	  then  echo "<<ERROR>> script [${PROG}] is currently being executed" 
+				exit 1
+			  else	UNAME=`uname -a | awk '{ print $1 }'`
+				PAUSED="is PAUSED on"
+			  	LANG=C
+				DRC=0
+				TRC=0
+				CLUSTERED=no
+				LASTACTION=`cat ${STATUSDIR}/.lastaction 2>/dev/null | awk -F\: '{ print $1 }'`
+				LASTACTIONRC=`cat ${STATUSDIR}/.lastaction 2>/dev/null | awk -F\: '{ print $2 }'`
+				TMPFILE1=/tmp/tmpfile1.${RANDOM}
+				TMPFILE2=/tmp/tmpfile2.${RANDOM}
+				TMPFILE3=/tmp/tmpfile3.${RANDOM}
+		  	  	echo "COMMAND: ${COMMAND}" >${REPORT}
+		  		validate_cfgfile
+			fi
+		fi
+	fi
+}
+
+function validate_cluster_config
+{
+	TYPE=${TIERTYPE[$INCR]}
+	case "${TYPE}" in
+	  MDCN)	if [ "${CLUSTERED}" = "no" ]
+		  then	if [ ${INCR} -eq 1 ]
+			  then	CLUSTERED=yes
+				CLUSTERNODES=1
+			  else	echo "ERROR: cluster definition start value [${INCR}] invalid, definition can only start from TIER 1"
+				CRC=1
+			fi
+		  else	if [ "${CLUSTERED}" = "done" ]
+			  then	echo "ERROR: TIERTYPE [${INCR}] value [${TYPE}]: you cannot have multiple clusters in the deployment"
+				CRC=1
+			  else	CLUSTERNODES="${CLUSTERNODES} ${INCR}"
+			fi
+		fi
+		;;
+	  MDCV)	if [ "${CLUSTERED}" = "no" ]
+		  then	echo "C ERROR: TIERTYPE [${INCR}] value [${TYPE}]: out of sync, no cluster nodes defined"
+			CRC=1
+		  else	if [ "${CLUSTERED}" = "done" ]	
+			  then	echo "ERROR: TIERTYPE [${INCR}] value [${TYPE}]: you cannot have multiple clusters in the deployment"
+				CRC=1
+			  else	CLUSTERED=done
+			  	CLUSTERNODES="${CLUSTERNODES} ${INCR}"
+			fi
+		fi
+		;;
+	  *)	if [ "${CLUSTERED}" != "no" -a "${CLUSTERED}" != "done" ]
+		  then	echo "ERROR: TIERTYPE [${INCR}] value [${TYPE}]: out of sync within a cluster definition"
+			CRC=1
+		fi
+		;;
+	esac
+}
+
+function validate_tiers
+{
+	((INCR=1))
+	MAXTIERS=${MAXTIERS:-0}
+	while [ ${INCR} -le ${MAXTIERS} ]
+	  do
+		TIERDRCCHK=""
+ 		if [ -z "${TIERNAME[$INCR]}" ]
+		  then	TIERDRCCHK="TIERNAME"
+		fi
+  		if [ -z "${TIERINST[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERINST"
+		  else	INST=${TIERINST[$INCR]}
+		fi
+  		if [ -z "${TIERHOST[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERHOST"
+		  else	HOST=${TIERHOST[$INCR]}
+		fi
+  		if [ -z "${TIERSTAR[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTAR"
+		fi
+  		if [ -z "${TIERSTOP[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTOP"
+		fi
+  		if [ -z "${TIERREST[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERREST"
+		fi
+  		if [ -z "${TIERSTAT[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTAT"
+		fi
+  		if [ -z "${TIERSTAS[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTAS"
+		fi
+  		if [ -z "${TIERSTOS[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTOS"
+		fi
+                if [ -z "${TIERLOGD[$INCR]}" ]
+                  then  TIERDRCCHK="${TIERDRCCHK} TIERLOGD"
+                fi
+                if [ -z "${TIERTYPE[$INCR]}" ]
+                  then  TIERDRCCHK="${TIERDRCCHK} TIERTYPE"
+                fi
+		validate_cluster_config
+		if [ ! -z "${TIERDRCCHK}" ]
+		  then	CRC=1
+			echo "  <<ERROR>> Validation of TIER[${INCR}] failed, missing or invalid items:"  | tee -a ${REPORT}
+			for ITEM in ${TIERDRCCHK}
+			  do
+				echo "          ${ITEM}"  | tee -a ${REPORT}
+			  done
+		  else	testssh 
+			if [ $? -ne 0 ]
+		  	  then	echo "  <<ERROR>> ssh connection to TIER[${INCR}] failed: [${CMD}]"
+				CRC=1
+			fi
+		fi
+		((INCR=INCR+1))
+	done
+	if [ "${CLUSTERED}" != "no" -a "${CLUSTERED}" != "done" ]
+	  then	echo "ERROR: Cluster not properly defined, no end TIER TYPE value set for MDCV"
+		CRC=1
+	  else	if [ "${CLUSTERED}" = "done" ]
+	  	  then	if [ "${ACTION}" != "status" -a "${TIER}" != "1" ]
+			  then	CHECK=`echo ${CLUSTERNODES} |  grep -c ${TIER}`
+				if [ ${CHECK} -eq 1 ]
+		  	  	  then	echo "ERROR: Action requested for TIER [${TIER}] cannot be taken within the cluster defintion, you can only take action to/from TIER 1" 
+					CRC=1
+				fi
+			fi
+		fi
+	fi
+}
+
+function validate_cfgfile 
+{
+	CRC=0
+	echo "" | tee -a ${REPORT}
+	echo "Configuration file validation [${CFGFILE}] status [begin]" | tee -a ${REPORT}
+	TRIMOFFSET=${TRIMOFFSET:-1}
+	TEST=`expr ${TRIMOFFSET} - 0 2>/dev/null`
+	if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> TRIMOFFSET values are positive whole numbers." | tee -a ${REPORT}
+		CRC=1
+	fi
+        TEST=`expr ${SLEEP} - 0 2>/dev/null`
+	if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> MAXRETRY values are positive whole numbers." | tee -a ${REPORT}
+		CRC=1
+	fi
+        TEST=`expr ${SLEEP} - 0 2>/dev/null`
+        if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> SLEEP values are positive whole numbers." | tee -a ${REPORT}
+		CRC=1
+	fi
+        TEST=`expr ${MAXTIERS} - 0 2>/dev/null`
+        if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> MAXTIERS value is not numeric." | tee -a ${REPORT}
+		CRC=1
+	fi
+	if [ "${TIERSTOP}" ]
+          then	TEST=`expr ${TIERSTOP} - 0 2>/dev/null`
+		if [[ -z "${TEST}" ]] || [ ${TIERSTOP} -gt ${MAXTIERS} ] || [ ${TIERSTOP} -lt 1 ]
+	  	  then	echo "<<ERROR>> Valid tier values are [${MAXTIERS}-1]" | tee -a ${REPORT}
+			echo "" | tee -a ${REPORT}
+			CRC=1
+		fi
+	fi
+	if [ "${TIERSTART}" ]
+          then	TEST=`expr ${TIERSTART} - 0 2>/dev/null`
+		if [[ -z "${TEST}" ]] || [ ${TIERSTART} -gt ${MAXTIERS} ] || [ ${TIERSTART}  -lt 1 ]
+	  	  then	echo "<<ERROR>> Valid tier values are [1-${MAXTIERS}]" | tee -a ${REPORT}
+			CRC=1
+		fi
+	fi
+	if [ ${CRC} -eq 0 ]
+	  then	validate_tiers
+	fi
+	if [ ${CRC} -eq 1 ]
+	  then	UNKNOWN=true
+		echo "Configuration file validation [${CFGFILE}] status [end failed - 000]" | tee -a ${REPORT}
+		echo "" | tee -a ${REPORT}
+		rm -f ${OUTFILE} >/dev/null 2>&1
+		exit ${CRC}
+	  else	echo "Configuration file validation [${CFGFILE}] status [end success]" | tee -a ${REPORT}
+		echo "" | tee -a ${REPORT}
+	fi
+}
+
+function get_dom
+{
+   case ${MONTH} in
+     2)         if [ `expr ${YEAR} % 400` -eq 0 ]
+                  then  DAY=29
+                  else  if [ `expr ${YEAR} % 100` -eq 0 ]
+                          then  DAY=28
+                          else  if [ `expr ${YEAR} % 4` -eq 0 ]
+                                  then  DAY=29
+                                  else  DAY=28
+                                fi
+                        fi
+                fi
+                ;;
+     4|6|9|11)	DAY=30
+                ;;
+     *)         DAY=31
+                ;;
+   esac
+}
+
+function bttf
+{
+	DATE=`date +%Y-%m-%d-%H`
+	YEAR=`echo ${DATE} | awk -F\- '{ print $1 }'`
+	MONTH=`echo ${DATE} | awk -F\- '{ print $2 }' | sed "s;^0;;g"`
+	DAY=`echo ${DATE} | awk -F\- '{ print $3 }' | sed "s;^0;;g"`
+	HOUR=`echo ${DATE} | awk -F\- '{ print $4 }' | sed "s;^0;;g"`
+	((HOUR=HOUR-$TRIMOFFSET))
+	if [ ${HOUR} -lt 0 ]
+  	  then  ((DAY=DAY-1))
+		((HOUR=HOUR+24))
+        	if [ ${DAY} -lt 1 ]
+          	  then  ((MONTH=MONTH-1))
+                	get_dom
+                	if [ ${MONTH} -lt 1 ]
+                  	  then  ((YEAR=YEAR-1))
+                        	MONTH=12
+                	fi
+		fi
+        fi
+	MONTH=`printf %.2d ${MONTH}`
+	DAY=`printf %.2d ${DAY}`
+	HOUR=`printf %.2d ${HOUR}`
+	HA="${YEAR}-${MONTH}-${DAY} ${HOUR}"
+}
+
+function create_BOM
+{
+	if [ -z "${POBAD}" -o "$2" = "cluster" ]
+	  then	POBAD=${GAINCR}
+		CT=${1}
+		if [ ! -f ${LOGFILESBOM} ]
+	  	  then	bttf
+	  		echo "${HA}" > ${LOGFILESBOM}
+			echo "" >>${LOGFILESBOM}
+		fi
+		echo "${CONF}" > ${TMPFILE1}
+		SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${CONF} -type f -name \"\*.srv\" 2>/dev/null"
+		SCMD=`stripsshiflocal ${SCMD}`
+		for RECORD in `eval ${SCMD} | egrep "^/"`
+ 	  	  do
+			TCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} cat ${RECORD}"
+			TCMD=`stripsshiflocal ${TCMD}`
+			eval ${TCMD}  | egrep -v "^#" | tail -2 | head -1 >> ${TMPFILE1}
+ 	  	  done
+		rm -f ${TMPFILE2} >/dev/null 2>&1
+		if [ -s ${TMPFILE1} ]
+		  then	for RECORD in `cat ${TMPFILE1} | awk '{ print length, $0 }' | sort -nu | awk '{ print $2 }' | egrep -v ${CONF}/`
+  	  	  	  do
+				SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${RECORD} -mmin -60 -type f -name \"\*.log\" 2>/dev/null"
+				SCMD=`stripsshiflocal ${SCMD}`
+				for RECORD2 in `eval ${SCMD} | egrep -v 'kahadb|tmlog' |  egrep "^/"`
+				  do
+					echo ${RECORD2} >> ${TMPFILE2}
+				  done
+  	  	  	done
+		fi
+		if [ -s ${TMPFILE2} ]
+  	  	  then	echo "Server [${HOST}] [${NAME}] issues" >> ${LOGFILESBOM}
+			echo "" >> ${LOGFILESBOM}
+			echo "<<TIER SERVICES>>" 	 >> ${LOGFILESBOM}
+			CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}" 
+			CMD=`stripsshiflocal ${CMD}`
+			eval ${CMD} | egrep "${CT}" >> ${LOGFILESBOM}
+			echo "" >> ${LOGFILESBOM}
+			echo "<<  LOG FILES  >>" >> ${LOGFILESBOM}
+			cat ${TMPFILE2} |
+			while read RECORD
+		  	  do
+				echo "${INST}:${HOST}:${TIER}:${RECORD}" >> ${LOGFILESBOM}
+		  	  done 
+			echo "" >> ${LOGFILESBOM}
+		fi
+	fi
+}
+
+function trim_logs
+{
+	TOKEN=`head -1 ${LOGFILESBOM}`
+	YEAR=`echo ${TOKEN} | awk -F\- '{ print $1 }'`
+	MONT=`echo ${TOKEN} | awk -F\- '{ print $2 }'`
+	MON=`date +%b`
+	DAY=`echo ${TOKEN} | awk -F\- '{ print $3 }' | awk '{ print $1 }'`
+	HOUR=`echo ${TOKEN} | awk '{ print $2 }'`
+	TOKEN2=`echo ${TOKEN} | sed "s; ;T;"`
+	TOKEN3=`echo ${TOKEN} | sed "s;-;/;g"`
+	TOKEN4="${YEAR}${MONT}${DAY}:${HOUR}"
+	TOKEN5="${YEAR}-${MONT}-${DAY} ${HOUR}"
+	TOKEN6="${DAY}-${MONT}-${YEAR} ${HOUR}"
+	echo "`date`: action [trim logfiles] status [begin]" | tee -a ${REPORT}
+	find ${LOGFILES} -type f |
+	while read FILE
+  	  do
+		FOUND=`egrep -n "${TOKEN}|${TOKEN2}|${TOKEN3}|${TOKEN4}|${TOKEN5}|${TOKEN6}" ${FILE} | head -1 | awk -F\: '{ print $1 }'`
+		if [ ! -z "${FOUND}" ]
+	  	  then	FS=`wc -l ${FILE} | awk '{ print $1 }'`
+			((TAIL=FS-FOUND+1))
+			tail -${TAIL} ${FILE} >${FILE}.trimmed
+			mv  ${FILE}.trimmed ${FILE}
+		fi
+  	  done
+	echo "`date`: action [trim logfiles] status [end success]" | tee -a ${REPORT}
+	echo "" | tee -a ${REPORT}
+}
+
+function extract_logs
+{
+	LOGROOT=${LOGFILES}
+	echo "`date`: action [centralize logfiles] status [begin]" | tee -a ${REPORT}
+	grep "log\$" ${LOGFILESBOM} | awk -F\: '{ print $2"/"$3"/"$4 }' | awk 'BEGIN{FS=OFS="/"}{$NF=""; NF--; print}' | sort -u | xargs -i mkdir -p ${LOGROOT}/{} 
+	grep "log\$" ${LOGFILESBOM} | sort -u >${TMPFILE1}
+	for LOGRECORD in `cat ${TMPFILE1}`
+  	  do
+		INST=`echo ${LOGRECORD} | awk -F\: '{ print $1 }'`	
+		HOST=`echo ${LOGRECORD} | awk -F\: '{ print $2 }'`	
+		TIER=`echo ${LOGRECORD} | awk -F\: '{ print $3 }'`	
+		LOGF=`echo ${LOGRECORD} | awk -F\: '{ print $4 }'` 
+		case "${UNAME}" in
+		HP-UX)	AVAIL=`df -k ${LOGROOT} | grep free | awk '{ print $1 }'`
+			;;
+		AIX)	AVAIL=`df -k ${LOGROOT} | tail -1 | awk '{ print $3 }'` 
+			;;
+		*)	AVAIL=`df -k ${LOGROOT} | tail -1 | awk '{ print $(NF-2) }'`
+			;;
+		esac
+		DCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} du -s -k ${LOGF}"
+		DCMD=`stripsshiflocal ${DCMD}`
+		SIZE=`eval ${DCMD} | tail -1 | awk '{ print $1 }'`
+		if [ "${AVAIL}" -gt "${SIZE}" ]
+                  then  TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+                        if [ "${THISHOST}" = "${TARGETHOST}" ]
+                          then  cp -p ${LOGF} ${LOGROOT}/${HOST}/${TIER}/${LOGF} >/dev/null 2>&1
+                          else  scp -p ${INST}@${HOST}:${LOGF} ${LOGROOT}/${HOST}/${TIER}/${LOGF} >/dev/null 2>&1
+                        fi
+                        TRIM=true
+	  	  else	echo "  <<  WARNING  >> insufficient space to copy logs to [${LOGROOT}]"
+			TRIM=false
+			rm -rf ${LOGROOT} >/dev/null 2>&1
+			break
+		fi
+  	  done 
+	echo "`date`: action [centralize logfiles] status [end]" | tee -a ${REPORT}
+	echo "" | tee -a ${REPORT}
+	if [ "${TRIM}" = "true" ]
+	  then	trim_logs
+	fi
+}
+
+function print_message 
+{
+	((PMINCR=$1))
+	TITLE="`date`: action [${2}] tier [${PMINCR}:${NAME}] host [${HOST}] status [$3]"
+	echo "${TITLE}" | tee -a ${REPORT}
+}
+
+function stripsshiflocal
+{
+        CMD="${*}"
+        TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+        if [ "${THISHOST}" = "${TARGETHOST}" ]
+          then  CMD=`echo ${CMD} | sed "s!ssh ${SSHOPTIONS} ${INST}@${HOST}!!" | sed "s!^ !!"  | sed 's%\\\\%%g'`
+                SKIP=true
+        fi
+        echo "${CMD}"
+}
+
+
+function run_cmd 
+{
+	CMD=`stripsshiflocal ${CMD}`
+	if [ "$1" != "SILENT" ]
+	  then	echo "  << EXECUTING >> ${CMD}" | tee -a ${REPORT}
+	fi
+	eval ${CMD} >${OUTFILE} 2>&1
+	case $? in
+	  0|1|2|4)	DRC=0
+			;;
+	  *)		DRC=1
+			;;
+	esac
+}
+
+function testssh
+{
+
+        CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} -o 'BatchMode=yes' -o 'ConnectionAttempts=1' true"
+        SKIP=false
+        if [ "${ACTION}" = "stop" ]
+          then  if [ "${INCR}" -lt "${TIERSTOP}" ]
+                  then  SKIP=true
+                fi
+        fi
+        TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+        if [ "${SKIP}" = "false" -a "${TARGETHOST}" != "${THISHOST}" ]
+          then  eval ${CMD} >${OUTFILE} 2>&1
+        fi
+}
+
+
+
+function get_array 
+{
+	GAINCR=${1}
+	NAME=${TIERNAME[$GAINCR]}
+	INST=${TIERINST[$GAINCR]}
+	HOST=${TIERHOST[$GAINCR]}
+	STAR=${TIERSTAR[$GAINCR]}
+	STOP=${TIERSTOP[$GAINCR]}
+	REST=${TIERREST[$GAINCR]}
+	STAT=${TIERSTAT[$GAINCR]}
+	CONF=${TIERLOGD[$GAINCR]}
+	TYPE=${TIERTYPE[$GAINCR]}
+}
+
+function check_services 
+{
+	CALLEDFROM=${1}
+	((TRY=1))
+	((CHECK=1))
+	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"  
+	run_cmd
+	CHECKGOOD=`egrep -c "${GOODTOKEN}" ${OUTFILE}`
+	CHECKBAD=`egrep -c "${BADTOKEN}" ${OUTFILE}`
+	while [ ${TRY} -le ${MAXRETRY} -a "${CALLEDFROM}" != "check_dependencies" ] 
+	  do
+		if [ ${CHECKGOOD} -eq 0 -o ${CHECKBAD} -ne 0 ]
+		  then	((TRY=TRY+1))
+		  	sleep ${SLEEP}
+			run_cmd
+			CHECKGOOD=`egrep -c "${GOODTOKEN}" ${OUTFILE}`
+			CHECKBAD=`egrep -c "${BADTOKEN}" ${OUTFILE}`
+		  else	break
+		fi
+	  done
+	if [ ${CHECKGOOD} -eq 0 ] && [ ${CHECKBAD} -eq 0 ]
+	  then	if [ "${CALLEDFROM}" != "quorum" ]
+		  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
+		fi
+	  	UNKNOWN=true
+	  else	if [ ${CHECKBAD} -ne 0 ]
+	  	  then	echo "  <<TIER STATUS>> ALL tier services have NOT returned the proper status [${GOODTOKEN}]" | tee -a ${REPORT}
+	  		if [ "${CALLEDFROM}" != "quorum" ]
+			  then	TRC=1
+                	  	grep "${BADTOKEN}" ${OUTFILE} > ${TMPFILE3}
+                		while read TOKENRECORD
+                  	  	  do
+                			echo "                  ${TOKENRECORD}" | tee -a ${REPORT}
+					if [ -z "${PD}" ]
+				  	  then	PD=${PD:-$TOKENRECORD}
+						PDHOST=${PDHOST:-$HOST}
+					fi
+                  	  	  done <${TMPFILE3}
+				rm -f ${TMPFILE3} >/dev/null 2>&1
+				if [ ! -z "${CONF}" ]  && [ "${CALLEDFROM}" != "check_dependencies" ] 
+			  	  then  create_BOM "${BADTOKEN}"  
+				fi
+	  		  else	UNKNOWN=true
+			fi
+	  	  else	echo "  <<TIER STATUS>> ALL tier services have returned the proper status [${GOODTOKEN}]" | tee -a ${REPORT}
+			((CHECK=0))
+		fi
+	fi
+}
+
+function get_active_cluster_node
+{
+	for NODE in ${CLUSTERNODES% *}
+	  do
+		get_array ${NODE}
+		NOTSTOPPED=${TIERSTOS[$NODE]}
+		CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
+		run_cmd SILENT
+		if [ `grep -c "${NOTSTOPPED}" ${OUTFILE}` -gt 0 ]
+		  then	STOPCLUSTERNODE=${NODE}
+			break
+		fi
+	  done
+}
+
+function got_quorum
+{
+	FIRSTNODE=down
+	CALLEDFROM=${1}
+	((DCOUNT=0))
+	((UCOUNT=0))
+	((QRC=0))
+	for NODE in ${CLUSTERNODES}
+	  do
+		get_array ${NODE}
+		NOTSTOPPED=${TIERSTOS[$NODE]}
+		NOTSTARTED=${TIERSTAS[$NODE]}
+		if [ "${TYPE}" != "MDCV" ]
+		  then	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
+			run_cmd 
+			((TRY=1))
+			while [ `grep -c "${NOTSTOPPED}" ${OUTFILE}` -eq 0 -a ${TRY} -lt ${MAXRETRY} -a "${ACTION}" = "start" -a "${CALLEDFROM}" != "check_dependencies" ]
+			do
+				sleep ${SLEEP}
+				((TRY=TRY+1))
+				run_cmd
+			done
+			if [ `grep -c "${NOTSTOPPED}" ${OUTFILE}` -gt 0 ]
+			  then	((UCOUNT=UCOUNT+1))
+				ULIST="${ULIST} ${NODE}"
+				if [ ${NODE} -eq 1 ]
+  				  then	 FIRSTNODE=up
+				fi
+			  else	((DCOUNT=DCOUNT+1))
+				if [ `grep -c "${NOTSTARTED}" ${OUTFILE}` -gt 0 ]
+				  then	DLIST="${DLIST} ${NODE}-stopped"
+				  else 	if [ `grep -c "${PAUSED}" ${OUTFILE}` -gt 0 ]
+				  	  then	DLIST="${DLIST} ${NODE}-paused"
+					  else	UNKNOWN=true
+						QLIST="${QLIST} ${NODE}-unknown"
+						QRC=1
+					fi
+				fi
+			fi
+		fi
+	  done
+	quorum_status
+}
+
+function quorum_status
+{
+	((CHECK=1))
+	for UPNAME in ${ULIST} 
+	  do
+		get_array ${UPNAME}
+		USERVERS="$USERVERS ${HOST}"
+	  done
+	USERVERS=`echo ${USERVERS} | sed "s;^ ;;"`
+	for DREC in ${DLIST} ${QLIST} 
+	  do
+		DNAME=`echo ${DREC} | awk -F\- '{ print $1 }'`
+		DSTAT=`echo ${DREC} | awk -F\- '{ print $2 }'`
+		get_array ${DNAME}
+		case ${DSTAT} in
+		  stopped)	DSERVERS="${DSERVERS} ${HOST}"
+				;;
+		  paused)	PSERVERS="${PSERVERS} ${HOST}"
+				;;
+		  unknown)	QSERVERS="${QSERVERS} ${HOST}"
+				;;
+		esac
+	  done
+	DSERVERS=`echo ${DSERVERS} | sed "s;^ ;;"`
+	PSERVERS=`echo ${PSERVERS} | sed "s;^ ;;"`
+	QSERVERS=`echo ${QSERVERS} | sed "s;^ ;;"`
+        USERVERS=${USERVERS:-none}
+        DSERVERS=${DSERVERS:-none}
+        PSERVERS=${PSERVERS:-none}
+        QSERVERS=${QSERVERS:-none}
+	((TOTAL=UCOUNT+DCOUNT))
+        if [ ${QRC} -eq 1 ]
+	  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
+	  else	if [ ${UCOUNT} -gt ${DCOUNT} ] || [ ${UCOUNT} -eq ${DCOUNT} -a "${FIRSTNODE}" = "up" ]
+	  	  then	if [ "${ACTION}" = "status" ]
+			  then	echo "  <<TIER STATUS>> ALL tier services are operational" | tee -a ${REPORT}
+			  else	echo "  <<TIER STATUS>> ALL tier services have returned the proper status [quorum achieved]" | tee -a ${REPORT}
+			fi
+			((CHECK=0))
+	  	  else	for DREC in ${DLIST} 
+	  	  	  do
+				DNAME=`echo ${DREC} | awk -F\- '{ print $1 }'`
+				DSTAT=`echo ${DREC} | awk -F\- '{ print $2 }'`
+				get_array ${DNAME}
+                		if [ "${LASTACTION}" = "start" -o "${ACTION}" = "start" ] && [ ! -z "${CONF}" ]
+			  	  then	create_BOM "${NOTSTARTED}" cluster
+                		fi
+	  	  	  done
+	  		if [ "${ACTION}" = "status" ]
+	  	  	  then	echo "  <<TIER STATUS>> ALL tier services are NOT operational" | tee -a ${REPORT}
+	  	  	  else	echo "  <<TIER STATUS>> ALL tier services have NOT returned the proper status [${NOTSTOPPED}]" | tee -a ${REPORT}
+				TRC=1
+			fi
+			PD="Metadata cluster is in an incorrect state"
+			PDHOST=${PDHOST:-$HOST}
+		fi
+	fi
+	echo "                  cluster nodes started [${USERVERS}]" | tee -a ${REPORT}
+	echo "                  cluster nodes stopped [${DSERVERS}]" | tee -a ${REPORT}
+	echo "                  cluster nodes paused  [${PSERVERS}]" | tee -a ${REPORT}
+	echo "                  cluster nodes unknown [${QSERVERS}]" | tee -a ${REPORT}
+}
+
+function check_dependencies 
+{
+	((CDINCR=1))
+	while [ "${CDINCR}" -le "${MAXTIERS}" ] && [ ${DRC} -eq 0 ] && [ "${UNKNOWN}" != "true" ]
+	  do
+		get_array ${CDINCR}
+		if [ "${CDINCR}" -lt "${TIER}" ]
+		  then	EXPECTED=started
+			BADTOKEN=${TIERSTAS[$CDINCR]}
+			GOODTOKEN=${TIERSTOS[$CDINCR]}
+		  else	EXPECTED=stopped
+			BADTOKEN=${TIERSTOS[$CDINCR]}
+			GOODTOKEN=${TIERSTAS[$CDINCR]}
+		fi
+		if [ "${CDINCR}" -ne "${TIER}" ]
+		  then	print_message "${CDINCR}" "check dependencies tier ${EXPECTED}" "begin"
+			if [ "${TYPE}" = "MDCV" ]
+			  then  if [ "${TIERSTART}" != "1" ]
+				  then	got_quorum check_dependencies
+					get_array ${CDINCR}
+				  else	echo "  <<    NOTE   >> skipping Metadata cluster validation dependency check" | tee -a ${REPORT}
+					((CHECK=0))
+				fi
+			  else 	if [ "${TYPE}" = "MDCN" ]
+				  then	if [ "${TIERSTART}" = "1" ] 
+				  	  then	check_services check_dependencies
+				  	  else	echo "  <<    NOTE   >> skipping Metadata cluster node dependency check" | tee -a ${REPORT}
+						((CHECK=0))
+					fi
+				  else	check_services check_dependencies
+				fi
+			fi
+			if [ "${CHECK}" -eq 0 ]
+			  then  print_message "${CDINCR}" "check dependencies tier ${EXPECTED}" "end success"
+			  else  print_message "${CDINCR}" "check dependencies tier ${EXPECTED}" "end failed - 001"
+				DRC=2
+				TRC=2
+			fi
+			echo "" | tee -a ${REPORT}
+		fi
+		((CDINCR=CDINCR+1))
+	  done
+}
+
+function start_services 
+{
+
+	check_dependencies
+	while [ ${DRC} -eq 0 ] && [ ${TIER} -le ${MAXTIERS} ] && [ "${UNKNOWN}" != "true" ]
+	  do
+		get_array ${TIER}
+		BADTOKEN=${TIERSTAS[$TIER]}
+		GOODTOKEN=${TIERSTOS[$TIER]}
+		print_message "${TIER}" "${ACTION}" "begin"
+		if [ ${TIER} -ne ${TIERSTART} ] 
+		  then	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAR}" 
+		  else	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${REST}"
+		fi
+		if [ "${TYPE}" != "MDCV" ]
+		  then	run_cmd
+		fi
+		if [ "${TYPE}" != "MDCN" ]
+		  then	if [ "${TYPE}" != "MDCV" ]
+			  then	check_services start_services
+		  	  else	got_quorum start_services
+				get_array ${TIER}
+			fi
+		fi
+		if [ "${CHECK}" -eq 0 ]
+		  then	print_message "${TIER}" "${ACTION}" "end success"
+		  else	print_message "${TIER}" "${ACTION}" "end failed - 003"
+			DRC=1
+		fi
+		echo "" | tee -a ${REPORT}
+		((TIER=TIER+1))
+	  done	
+}
+ 
+ 
+function stop_services 
+{
+	((TIER=MAXTIERS))
+	while [ ${DRC} -eq 0 ] && [ ${TIER} -ge ${TIERSTOP} ] && [ "${UNKNOWN}" != "true" ]
+	  do
+		get_array ${TIER}
+		BADTOKEN=${TIERSTOS[$TIER]}
+		GOODTOKEN=${TIERSTAS[$TIER]}
+		print_message "${TIER}" "${ACTION}" "begin"
+		case "${TYPE}" in
+		  MDCN)	;;
+		  MDCV)	get_active_cluster_node
+			if [ ! -z "${STOPCLUSTERNODE}" ]
+			  then	get_array ${STOPCLUSTERNODE}
+				CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STOP}"
+				run_cmd  
+			  else	echo "  <<    NOTE   >> skipping Metadata cluster validation stopCluster action" | tee -a ${REPORT}
+			fi
+			get_array ${TIER}
+			;;
+		  *)	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STOP}"
+		  	run_cmd
+			;;
+		esac
+		case "${TYPE}" in
+		  MDCV)	((CHECK=0))
+			;;
+		  MDCN)	check_services quorum
+			if [ "${UNKNOWN}" = "true" ]
+			  then	STOP=`echo ${STOP} | sed "s;stopCluster;stop;"`
+				CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STOP}"
+				run_cmd #>/dev/null 2>&1 
+				UNKNOWN=""
+				check_services stop_services
+			fi
+			;;
+		  *)	check_services stop_services
+			;;
+		esac
+		if [ "${CHECK}" -eq 0 ]
+		  then	print_message "${TIER}" "${ACTION}" "end success"
+		  else	print_message "${TIER}" "${ACTION}" "end failed - 005"
+			DRC=1
+		fi
+		echo "" | tee -a ${REPORT}
+		((TIER=TIER-1))
+	  done	
+}
+
+function get_deployment_state
+{
+	STATUS=FAILURE
+	if [ ${DRC} -eq 0 ]
+	  then	STATUS=SUCCESS
+	fi
+  	case "${ACTION}" in
+	  start) 	case ${TRC} in
+	  		  0)	MSG="<<${STATUS}>> Deployment tier services are operational" 
+				;;
+		  	  1)  	MSG="<<${STATUS}>> Deployment tier services are NOT fully operational"
+				;;
+			  2)  	MSG="<<${STATUS}>> Deployment tier services dependency check failed" 
+				rm -f ${LOGFILESBOM} >/dev/null 2>&1
+				;;
+			esac
+				;;
+	  stop) 	STAN=${TIERNAME[$MAXTIERS]}
+			STON=${TIERNAME[$TIERSTOP]}
+			case ${TRC} in
+			  0)  	STATE="NOT operational"
+				;;
+			  1)    STATE="NOT fully operational"
+				;;
+			  *)	STATE="in an unknown state"
+				;;
+			esac
+				MSG="<<${STATUS}>> Deployment tier services are ${STATE} from [${MAXTIERS}:${STAN}] to tier [${TIERSTOP}:${STON}]" 
+				;;
+	  status)	DOWN=`grep -c "ALL tier services are NOT operational" ${REPORT}`
+			UP=`grep -c "ALL tier services are operational" ${REPORT}`
+			XX=`grep -c "ALL tier services are NOT fully operational" ${REPORT}`
+			if [ ${DOWN} -gt 0 -a ${UP} -gt 0 ] || [ ${XX} -gt 0 ]
+			  then	MSG="<<STATUS>> Deployment tier services are NOT fully operational" 
+				if [ "${LASTACTION}" = "start" ]
+				  then	STATUS=FAILURE
+					TRC=1
+				fi
+			  else	if [ ${DOWN} -eq 0 ]
+				  then	MSG="<<STATUS>> Deployment tier services are operational"  
+				  else	MSG="<<STATUS>> Deployment tier services are NOT operational"
+
+					if [ ${LASTACTION} = "start" ]
+					  then	STATUS=FAILURE
+						TRC=1
+					fi
+				fi
+			fi
+			;;
+		esac
+}
+
+function build_log_analysis
+{
+        #find ${STATUSDIR}/logfiles -type f -exec egrep -I "ERROR" {} \; | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed 's;.*ERROR;ERROR;' | sed 's/\[[^][]*\]//g' | cut -c 1-100 |  sort | uniq -c | sort -nr | head -20 >${TMPFILE1}
+        find ${STATUSDIR}/logfiles -type f -exec egrep "ERROR" {} \; | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed 's;.*ERROR;ERROR;' | sed 's/\[[^][]*\]//g' | cut -c 1-100 |  sort | uniq -c | sort -nr | head -20 >${TMPFILE1}
+	echo "" | tee -a ${LOGFILESANALYSIS}
+        while read RECORD
+          do
+                NUMFOUND=`echo ${RECORD} | awk '{ print $1 }'`
+                ERRORMSG=`echo ${RECORD} | sed "s;^${NUMFOUND};;"`
+                printf "%4s %s\n" "${NUMFOUND}" "${ERRORMSG}" >> ${LOGFILESANALYSIS}
+          done <${TMPFILE1}
+	echo "" >> ${LOGFILESANALYSIS}
+	echo "LOG ANALYSIS OF ERRORS AND WARNINGS for issue SAS_lsm [${ACTION}] on host [${PDHOST}]: ${PD}" >> ${LOGFILESANALYSIS}
+	echo "" >> ${LOGFILESANALYSIS}
+	find ${STATUSDIR}/logfiles -type f -print |
+	while read FILERECORD
+  	  do
+		FOUND=false
+		#egrep -In "ERROR" ${FILERECORD} | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed "s;${STATUSDIR}/logfiles/;;" |
+		egrep -n "ERROR" ${FILERECORD} | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed "s;${STATUSDIR}/logfiles/;;" |
+		while read ERRORRECORD
+	  	  do
+			if [ "${FOUND}" = "false" ]
+		  	  then	FOUND=true
+				FILERECORD=`echo ${FILERECORD} | sed "s;${STATUSDIR}/;;"`
+				echo "${FILERECORD}">> ${LOGFILESANALYSIS}
+			fi
+			echo "    ${ERRORRECORD}" >> ${LOGFILESANALYSIS}
+	  	  done
+  	  done
+}
+
+function trap_ctrlc
+{
+    ANSWER=${CTR}
+}
+
+function lhf
+{
+	if  [ -d "${LOGFILES}" ] && [ -s "${TMPFILE1}" ] 
+       	  then	echo ""
+		echo ""  
+		echo "LOG ANALYSIS OF ERRORS AND WARNINGS for issue SAS_lsm [${ACTION}] on host [${PDHOST}]: ${PD}" 
+		echo ""  
+		((CTR=1))
+        	printf "%2s %12s %8s %s\n" "ITEM" "OCCURENCES" "TYPE" "  MESSAGE"
+  	  	while read RECORD
+          	  do
+                	NUMFO=`echo ${RECORD} | awk '{ print $1 }'`
+        		TYPEM=`echo ${RECORD} | awk '{ print $2 }' | sed "s;\:;;"`
+        		RECORD=`echo ${RECORD} | sed "s;${NUMFO};;"| sed "s;${TYPEM};;" | sed "s;\:;;" | sed "s;^ ;;g"`
+			RECORD[$CTR]="${TYPEM} ${RECORD}"
+			if [ ! -z "${RECORD}" ]
+  			  then	printf "%4s %12s %8s %s\n" "${CTR}" "${NUMFO}" "${TYPEM}" "${RECORD}" 
+                		((CTR=CTR+1))
+			fi
+          	  done <${TMPFILE1}
+		echo "" | tee -a ${REPORT}
+	fi
+}
+
+function build_track_details
+{
+	INST=${TIERINST[1]}
+        HOST=${TIERHOST[1]}
+	CFGD=${TIERLOGD[1]}
+        DATE=`date +%Y-%m-%d-%H-%M`
+        echo "TRACK SUBMISSION INPUT" > ${LOGFILESANALYSIS}
+        echo "" >> ${LOGFILESANALYSIS}
+        echo "Tips when engaging with Technical support: http://support.sas.com/kb/57/691.html" >> ${LOGFILESANALYSIS}
+        echo "" >> ${REPORT}
+	FCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} grep -l ${CFGD} .SASAppData/SASDeploymentWizard/SDW*"
+	FCMD=`stripsshiflocal ${FCMD}`
+	FILE=`eval ${FCMD} | egrep "^.SASAppData" | head -1`
+	if [ ! -z "${FILE}" ]
+          then  TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+                if [ "${THISHOST}" = "${TARGETHOST}" ]
+                  then  cp ${FILE} ${STATUSDIR} >/dev/null 2>&1
+                  else  scp ${INST}@${HOST}:${FILE} ${STATUSDIR} >/dev/null 2>&1
+                fi
+        	SASHOME=`grep sas.home.dir ${STATUSDIR}/${FILE##*/} | awk -F\= '{ print $2 }' | sed "s; ;;g"`
+        	SITENUMBER=`grep sid.site.num ${STATUSDIR}/${FILE##*/}  | awk -F\= '{ print $2 }' | sed "s; ;;g"`
+        	PLATFORM=`grep "Platform Code:" ${STATUSDIR}/${FILE##*/} | awk -F\: '{ print $2 }' | sed "s; ;;g"`
+        	ORDER=`grep "Order Number:" ${STATUSDIR}/${FILE##*/} | awk -F\: '{ print $2 }' | sed "s; ;;g"`
+        	echo "*Site Number        : ${SITENUMBER}" >> ${LOGFILESANALYSIS}
+        	echo "*Order Number       : ${ORDER}" >> ${LOGFILESANALYSIS}
+        	echo "*Operating System   : ${PLATFORM}" >> ${LOGFILESANALYSIS}
+	fi
+        cd ${STATUSDIR}
+        rm -f tarfile.* >/dev/null 2>&1
+        tar -cf tarfile.${DATE} *
+	if [ $? -ne 0 ] 
+	  then	rm -f tarfile.${DATE} >/dev/null 2>&1
+          else	gzip tarfile.${DATE}
+        	echo "*Upload Files       : ${STATUSDIR}/tarfile.${DATE}.gz" >> ${LOGFILESANALYSIS}
+	fi
+	echo "*Problem Description: SAS_lsm [${ACTION}] on host [${PDHOST}]: ${PD}" >> ${LOGFILESANALYSIS}
+        echo "*Paste any relevant ERROR OR WARNING messages below:" >> ${LOGFILESANALYSIS}
+	build_log_analysis
+        cd - >/dev/null 2>&1
+}
+
+
+function cleanup 
+{
+	if [ "${UNKNOWN}" = "true" ]
+  	  then	MSG="<<FAILURE>> Deployment tier services are in an unknown state"
+		TRC=1
+		DRC=1
+	  else	get_deployment_state
+		if [ -f "${LOGFILESBOM}" ] && [ `wc -l ${LOGFILESBOM} | awk '{ print $1 }'` -gt 2  ]
+	  	  then	if [ "${EXTRACTLOGS}" = "true" ] && [ ! -d ${LOGFILES} ] 
+		  	  then	mkdir ${LOGFILES} >/dev/null 2>&1
+				cp -p ${CFGFILE} ${LOGFILES}/
+				extract_logs
+			fi
+	  	  else rm -f ${LOGFILESBOM} >/dev/null 2>&1
+		fi
+	fi
+	if [ -d ${LOGFILES} ] 
+	  then	SASCONFIG=`echo ${TIERSTAR[$POBAD]} | sed "s;nohup ;;" | awk '{ print $1 }'`
+		SASCONFIG=${SASCONFIG%/*}
+		while true
+		  do
+			case "${SASCONFIG}" in
+			  */Lev[1-9])	break
+					;;
+			  */)		SASCONFIG=${SASCONFIG%/*}
+					;;
+			  *)		break
+					;;
+			esac
+		  done
+		build_track_details
+	fi
+	echo "Please see ${REPORT} for execution details" | tee -a ${REPORT}
+	if [ -f "${LOGFILESBOM}" ] 
+	  then	echo "           ${LOGFILESBOM} for a listing of logfiles" | tee -a ${REPORT}
+	fi
+	if [ -d ${LOGFILES} ]
+	  then	echo "           ${LOGFILES} for the centralized logfiles" | tee -a ${REPORT}
+	fi
+	if [ -f "${LOGFILESANALYSIS}" ]
+	  then	echo "" | tee -a ${REPORT}
+		echo "           If you would like to open a SAS problem report, please review ${LOGFILESANALYSIS} for helpful information" | tee -a ${REPORT}
+	fi
+	if [ "${ACTION}" = "status" ]
+	  then	if [ ${LASTACTION} = "start" ]
+		  then	if [ ${TRC} -eq 1 ] 
+	  	  	  then	MAILADMIN=yes
+				STATUS=FAILURE
+			fi
+		  else	TRC=${LASTACTIONRC}
+		fi
+		echo "${LASTACTION}:${TRC}" > ${STATUSDIR}/.lastaction
+	  else	MAILADMIN=yes
+		echo "${ACTION}:${DRC}" > ${STATUSDIR}/.lastaction
+	fi
+	echo "" | tee -a ${REPORT}
+	echo "" | tee -a ${REPORT}
+	if [ ! -z "${POBAD}" ]
+	  then	 MSG="${MSG} [failure on tier ${POBAD}]"
+	fi
+	echo "${MSG}" >> ${REPORT}
+	if [ ! -z "${SASADMIN}" ] && [ "${MAILADMIN}" = "yes" ]
+	  then	mailx -s "`date` ${PROG} ${STATUS} ${ACTION} ${CFGFILE##*/}" ${SASADMIN} < ${REPORT} 
+	fi
+	lhf
+	rm -f ${OUTFILE} ${TMPFILE1} ${TMPFILE2} ${TMPFILE3} ${STATUSDIR}/SDW*  >/dev/null 2>&1
+	echo "${MSG}" 
+	echo "" 
+	exit ${DRC}
+}
+
+function tier_status 
+{
+	TSTIER=$1
+        ((TRY=1))
+	UPTOKEN=${TIERSTAS[$TSTIER]}
+	DOWNTOKEN=${TIERSTOS[$TSTIER]}
+        CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
+        run_cmd
+        while [ ${TRY} -le ${MAXRETRY} ] && [ ${DRC} -ne 0 ]
+          do
+                run_cmd
+		((TRY=TRY+1))
+          done
+	UPCOUNT=`egrep -c "${DOWNTOKEN}" ${OUTFILE}`
+	DOWNCOUNT=`egrep -c "${UPTOKEN}" ${OUTFILE}`
+	if [ ${UPCOUNT} -gt 0 -a ${DOWNCOUNT} -eq 0 ]
+	  then	echo "  <<TIER STATUS>> ALL tier services are operational" | tee -a ${REPORT}
+	  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -gt 0 ]
+		  then	echo "  <<TIER STATUS>> ALL tier services are NOT operational" | tee -a ${REPORT}
+		  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -eq 0 ]
+	  	  	  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
+				UNKNOWN=true
+			  else	echo "  <<TIER STATUS>> ALL tier services are NOT fully operational" | tee -a ${REPORT}
+			fi
+		fi
+		if [ "${LASTACTION}" = "start" -a ! -z "${CONF}" ]
+		  then	create_BOM "${UPTOKEN}" 
+			if [ -z "${PD}" ]
+	  	  	  then  PD="`grep \"${UPTOKEN}\" ${OUTFILE} | egrep -v \"SAS servers status:\" | head -1`"
+			fi
+		  else	if [ "${LASTACTION}" = "stop" -a -z "${PD}" ]
+	  	  	  then  PD="`grep \"${DOWNTOKEN}\" ${OUTFILE} | egrep -v \"SAS servers status:\" | head -1`"
+			fi
+		fi
+		PDHOST=${PDHOST:-$HOST}
+	fi
+	egrep "${UPTOKEN}|${DOWNTOKEN}" ${OUTFILE} |
+	while read TOKENRECORD
+	do
+	  	echo "                  ${TOKENRECORD}" | tee -a ${REPORT}
+	done
+}
+
+function status_services 
+{
+	if [ ! -z "${CLUSTERNODES}" ]
+	  then	QV=yes
+	fi
+	((TIER=1))
+        while [ ${TIER} -le ${MAXTIERS} ] 
+          do
+		QRC=0
+   		get_array ${TIER}
+                print_message "${TIER}" "services_status" "begin"
+		if [ "${QV}" = "yes" ]
+		  then	if [ "${TYPE}" = "MDCV" ]
+		  	  then	got_quorum status_services
+   				get_array ${TIER}
+				QV=no
+			  else	echo "  <<    NOTE   >> skipping Metadata cluster node validation" | tee -a ${REPORT}
+			fi
+		  else	tier_status ${TIER}
+		fi
+		if [ ${DRC} -eq 0 -a ${QRC} -ne 1 ]
+		  then	print_message "${TIER}" "services_status" "end success"
+	  	  else	UNKNOWN=true
+			print_message "${TIER}" "services_status" "end failed - 007"
+		fi
+		echo "" | tee -a ${REPORT}
+		((TIER=TIER+1))
+	  done
+}
+
+
+# main
+CURRSHELL=`ps -p $$ | tail -1 | awk '{print $4}'`
+if [ "${CURRSHELL}" != "bash" -a "${CURRSHELL}" != "sh" ] 
+  then	echo "<<ERROR>> Invalid invocation of script via shell [${CURRSHELL}]. Please invoke via the bash or bourne (sh) shell"
+	exit 1
+fi
+PROG=${0##*/}
+DIR=${0%/*}
+if [ "${DIR}" = "${PROG}" ]
+  then	DIR=.
+fi
+COMMAND="${PROG} ${*}"
+args=`getopt esc:a:o: $*`
+for i in $args
+  do
+        case "$i" in
+          -c)   CFGFILE=$2
+                shift 2
+                ;;
+          -a)   ACTION="${ACTION}start"
+                TIER=$2
+		TIERSTART=${TIER}
+	        shift 2
+                ;;
+          -o)   ACTION="${ACTION}stop"
+                TIER=$2
+		TIERSTOP=${TIER}
+	        shift 2
+                ;;
+          -s)   ACTION="${ACTION}status"
+		TIER=1
+                shift
+		;;
+          -e)   EXTRACTLOGS=true
+                shift
+		;;
+        esac
+  done
+initialize
+rm -rf ${LOGFILESBOM} ${LOGFILESANALYSIS} ${LOGFILES} ${STATUSDIR}/tarfile.*.* >/dev/null 2>&1 
+case "${ACTION}" in
+  start|stop)	rm -f ${STATUSDIR}/.lastaction >/dev/null 2>&1 
+		${ACTION}_services
+		;;
+  status)	status_services
+		;;
+  *)		usage
+		;;
+esac
+cleanup
