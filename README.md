@@ -3,9 +3,10 @@ The file in the root directory "SAS_lsm" is the built master script file that ca
 
 //TODO
 1) Design a script to automatically generate the master script file by using all the files in "lsm_components". The contents are:
-    > "header.txt" (comments at top of script)
-    > various "XYZ.fn" files (one for each function)
-    > "main.main" (main calls at bottom of script which are not in a function)
+*     "header.txt" (comments at top of script)
+*     various "XYZ.fn" files (one for each function)
+*     "main.main" (main calls at bottom of script which are not in a function)
+
     
 Given this, we can easily design a script to find and copy these files into a combined single file in the preferred order (likely as listed above) which would then be the master script file.
 
