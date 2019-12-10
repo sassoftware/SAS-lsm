@@ -1,0 +1,14 @@
+function get_active_cluster_node
+{
+	for NODE in ${CLUSTERNODES% *}
+	  do
+		get_array ${NODE}
+		NOTSTOPPED=${TIERSTOS[$NODE]}
+		CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
+		run_cmd SILENT
+		if [ `grep -c "${NOTSTOPPED}" ${OUTFILE}` -gt 0 ]
+		  then	STOPCLUSTERNODE=${NODE}
+			break
+		fi
+	  done
+}

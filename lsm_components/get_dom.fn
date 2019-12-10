@@ -1,0 +1,20 @@
+function get_dom
+{
+   case ${MONTH} in
+     2)         if [ `expr ${YEAR} % 400` -eq 0 ]
+                  then  DAY=29
+                  else  if [ `expr ${YEAR} % 100` -eq 0 ]
+                          then  DAY=28
+                          else  if [ `expr ${YEAR} % 4` -eq 0 ]
+                                  then  DAY=29
+                                  else  DAY=28
+                                fi
+                        fi
+                fi
+                ;;
+     4|6|9|11)	DAY=30
+                ;;
+     *)         DAY=31
+                ;;
+   esac
+}

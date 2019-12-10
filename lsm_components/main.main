@@ -1,0 +1,51 @@
+
+# main
+CURRSHELL=`ps -p $$ | tail -1 | awk '{print $4}'`
+if [ "${CURRSHELL}" != "bash" -a "${CURRSHELL}" != "sh" ] 
+  then	echo "<<ERROR>> Invalid invocation of script via shell [${CURRSHELL}]. Please invoke via the bash or bourne (sh) shell"
+	exit 1
+fi
+PROG=${0##*/}
+DIR=${0%/*}
+if [ "${DIR}" = "${PROG}" ]
+  then	DIR=.
+fi
+COMMAND="${PROG} ${*}"
+args=`getopt esc:a:o: $*`
+for i in $args
+  do
+        case "$i" in
+          -c)   CFGFILE=$2
+                shift 2
+                ;;
+          -a)   ACTION="${ACTION}start"
+                TIER=$2
+		TIERSTART=${TIER}
+	        shift 2
+                ;;
+          -o)   ACTION="${ACTION}stop"
+                TIER=$2
+		TIERSTOP=${TIER}
+	        shift 2
+                ;;
+          -s)   ACTION="${ACTION}status"
+		TIER=1
+                shift
+		;;
+          -e)   EXTRACTLOGS=true
+                shift
+		;;
+        esac
+  done
+initialize
+rm -rf ${LOGFILESBOM} ${LOGFILESANALYSIS} ${LOGFILES} ${STATUSDIR}/tarfile.*.* >/dev/null 2>&1 
+case "${ACTION}" in
+  start|stop)	rm -f ${STATUSDIR}/.lastaction >/dev/null 2>&1 
+		${ACTION}_services
+		;;
+  status)	status_services
+		;;
+  *)		usage
+		;;
+esac
+cleanup

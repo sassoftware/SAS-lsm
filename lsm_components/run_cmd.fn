@@ -1,0 +1,14 @@
+function run_cmd 
+{
+	CMD=`stripsshiflocal ${CMD}`
+	if [ "$1" != "SILENT" ]
+	  then	echo "  << EXECUTING >> ${CMD}" | tee -a ${REPORT}
+	fi
+	eval ${CMD} >${OUTFILE} 2>&1
+	case $? in
+	  0|1|2|4)	DRC=0
+			;;
+	  *)		DRC=1
+			;;
+	esac
+}

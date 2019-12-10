@@ -1,0 +1,40 @@
+function build_track_details
+{
+	INST=${TIERINST[1]}
+        HOST=${TIERHOST[1]}
+	CFGD=${TIERLOGD[1]}
+        DATE=`date +%Y-%m-%d-%H-%M`
+        echo "TRACK SUBMISSION INPUT" > ${LOGFILESANALYSIS}
+        echo "" >> ${LOGFILESANALYSIS}
+        echo "Tips when engaging with Technical support: http://support.sas.com/kb/57/691.html" >> ${LOGFILESANALYSIS}
+        echo "" >> ${REPORT}
+	FCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} grep -l ${CFGD} .SASAppData/SASDeploymentWizard/SDW*"
+	FCMD=`stripsshiflocal ${FCMD}`
+	FILE=`eval ${FCMD} | egrep "^.SASAppData" | head -1`
+	if [ ! -z "${FILE}" ]
+          then  TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+                if [ "${THISHOST}" = "${TARGETHOST}" ]
+                  then  cp ${FILE} ${STATUSDIR} >/dev/null 2>&1
+                  else  scp ${INST}@${HOST}:${FILE} ${STATUSDIR} >/dev/null 2>&1
+                fi
+        	SASHOME=`grep sas.home.dir ${STATUSDIR}/${FILE##*/} | awk -F\= '{ print $2 }' | sed "s; ;;g"`
+        	SITENUMBER=`grep sid.site.num ${STATUSDIR}/${FILE##*/}  | awk -F\= '{ print $2 }' | sed "s; ;;g"`
+        	PLATFORM=`grep "Platform Code:" ${STATUSDIR}/${FILE##*/} | awk -F\: '{ print $2 }' | sed "s; ;;g"`
+        	ORDER=`grep "Order Number:" ${STATUSDIR}/${FILE##*/} | awk -F\: '{ print $2 }' | sed "s; ;;g"`
+        	echo "*Site Number        : ${SITENUMBER}" >> ${LOGFILESANALYSIS}
+        	echo "*Order Number       : ${ORDER}" >> ${LOGFILESANALYSIS}
+        	echo "*Operating System   : ${PLATFORM}" >> ${LOGFILESANALYSIS}
+	fi
+        cd ${STATUSDIR}
+        rm -f tarfile.* >/dev/null 2>&1
+        tar -cf tarfile.${DATE} *
+	if [ $? -ne 0 ] 
+	  then	rm -f tarfile.${DATE} >/dev/null 2>&1
+          else	gzip tarfile.${DATE}
+        	echo "*Upload Files       : ${STATUSDIR}/tarfile.${DATE}.gz" >> ${LOGFILESANALYSIS}
+	fi
+	echo "*Problem Description: SAS_lsm [${ACTION}] on host [${PDHOST}]: ${PD}" >> ${LOGFILESANALYSIS}
+        echo "*Paste any relevant ERROR OR WARNING messages below:" >> ${LOGFILESANALYSIS}
+	build_log_analysis
+        cd - >/dev/null 2>&1
+}

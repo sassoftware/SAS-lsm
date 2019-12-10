@@ -1,0 +1,43 @@
+function got_quorum
+{
+	FIRSTNODE=down
+	CALLEDFROM=${1}
+	((DCOUNT=0))
+	((UCOUNT=0))
+	((QRC=0))
+	for NODE in ${CLUSTERNODES}
+	  do
+		get_array ${NODE}
+		NOTSTOPPED=${TIERSTOS[$NODE]}
+		NOTSTARTED=${TIERSTAS[$NODE]}
+		if [ "${TYPE}" != "MDCV" ]
+		  then	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
+			run_cmd 
+			((TRY=1))
+			while [ `grep -c "${NOTSTOPPED}" ${OUTFILE}` -eq 0 -a ${TRY} -lt ${MAXRETRY} -a "${ACTION}" = "start" -a "${CALLEDFROM}" != "check_dependencies" ]
+			do
+				sleep ${SLEEP}
+				((TRY=TRY+1))
+				run_cmd
+			done
+			if [ `grep -c "${NOTSTOPPED}" ${OUTFILE}` -gt 0 ]
+			  then	((UCOUNT=UCOUNT+1))
+				ULIST="${ULIST} ${NODE}"
+				if [ ${NODE} -eq 1 ]
+  				  then	 FIRSTNODE=up
+				fi
+			  else	((DCOUNT=DCOUNT+1))
+				if [ `grep -c "${NOTSTARTED}" ${OUTFILE}` -gt 0 ]
+				  then	DLIST="${DLIST} ${NODE}-stopped"
+				  else 	if [ `grep -c "${PAUSED}" ${OUTFILE}` -gt 0 ]
+				  	  then	DLIST="${DLIST} ${NODE}-paused"
+					  else	UNKNOWN=true
+						QLIST="${QLIST} ${NODE}-unknown"
+						QRC=1
+					fi
+				fi
+			fi
+		fi
+	  done
+	quorum_status
+}

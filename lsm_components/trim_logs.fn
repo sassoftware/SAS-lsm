@@ -1,0 +1,27 @@
+function trim_logs
+{
+	TOKEN=`head -1 ${LOGFILESBOM}`
+	YEAR=`echo ${TOKEN} | awk -F\- '{ print $1 }'`
+	MONT=`echo ${TOKEN} | awk -F\- '{ print $2 }'`
+	MON=`date +%b`
+	DAY=`echo ${TOKEN} | awk -F\- '{ print $3 }' | awk '{ print $1 }'`
+	HOUR=`echo ${TOKEN} | awk '{ print $2 }'`
+	TOKEN2=`echo ${TOKEN} | sed "s; ;T;"`
+	TOKEN3=`echo ${TOKEN} | sed "s;-;/;g"`
+	TOKEN4="${YEAR}${MONT}${DAY}:${HOUR}"
+	TOKEN5="${YEAR}-${MONT}-${DAY} ${HOUR}"
+	echo "`date`: action [trim logfiles] status [begin]" | tee -a ${REPORT}
+	find ${LOGFILES} -type f |
+	while read FILE
+  	  do
+		FOUND=`egrep -n "${TOKEN}|${TOKEN2}|${TOKEN3}|${TOKEN4}|${TOKEN5}" ${FILE} | egrep -v SASEnvironmentManager | head -1 | awk -F\: '{ print $1 }'`
+		if [ ! -z "${FOUND}" ]
+	  	  then	FS=`wc -l ${FILE} | awk '{ print $1 }'`
+			((TAIL=FS-FOUND+1))
+			tail -${TAIL} ${FILE} >${FILE}.trimmed
+			mv  ${FILE}.trimmed ${FILE}
+		fi
+  	  done
+	echo "`date`: action [trim logfiles] status [end success]" | tee -a ${REPORT}
+	echo "" | tee -a ${REPORT}
+}

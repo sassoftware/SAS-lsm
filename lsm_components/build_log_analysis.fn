@@ -1,0 +1,31 @@
+function build_log_analysis
+{
+        #find ${STATUSDIR}/logfiles -type f -exec egrep -I "ERROR" {} \; | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed 's;.*ERROR;ERROR;' | sed 's/\[[^][]*\]//g' | cut -c 1-100 |  sort | uniq -c | sort -nr | head -20 >${TMPFILE1}
+        find ${STATUSDIR}/logfiles -type f -exec egrep "ERROR" {} \; | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed 's;.*ERROR;ERROR;' | sed 's/\[[^][]*\]//g' | cut -c 1-100 |  sort | uniq -c | sort -nr | head -20 >${TMPFILE1}
+	echo "" | tee -a ${LOGFILESANALYSIS}
+        while read RECORD
+          do
+                NUMFOUND=`echo ${RECORD} | awk '{ print $1 }'`
+                ERRORMSG=`echo ${RECORD} | sed "s;^${NUMFOUND};;"`
+                printf "%4s %s\n" "${NUMFOUND}" "${ERRORMSG}" >> ${LOGFILESANALYSIS}
+          done <${TMPFILE1}
+	echo "" >> ${LOGFILESANALYSIS}
+	echo "LOG ANALYSIS OF ERRORS AND WARNINGS for issue SAS_lsm [${ACTION}] on host [${PDHOST}]: ${PD}" >> ${LOGFILESANALYSIS}
+	echo "" >> ${LOGFILESANALYSIS}
+	find ${STATUSDIR}/logfiles -type f -print |
+	while read FILERECORD
+  	  do
+		FOUND=false
+		#egrep -In "ERROR" ${FILERECORD} | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed "s;${STATUSDIR}/logfiles/;;" |
+		egrep -n "ERROR" ${FILERECORD} | egrep -v "wrapper|INFO|Exception|Access|NOTE|duplicate key value violates unique constraint" | sed "s;${STATUSDIR}/logfiles/;;" |
+		while read ERRORRECORD
+	  	  do
+			if [ "${FOUND}" = "false" ]
+		  	  then	FOUND=true
+				FILERECORD=`echo ${FILERECORD} | sed "s;${STATUSDIR}/;;"`
+				echo "${FILERECORD}">> ${LOGFILESANALYSIS}
+			fi
+			echo "    ${ERRORRECORD}" >> ${LOGFILESANALYSIS}
+	  	  done
+  	  done
+}

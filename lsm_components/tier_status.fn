@@ -1,0 +1,42 @@
+function tier_status 
+{
+	TSTIER=$1
+        ((TRY=1))
+	UPTOKEN=${TIERSTAS[$TSTIER]}
+	DOWNTOKEN=${TIERSTOS[$TSTIER]}
+        CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
+        run_cmd
+        while [ ${TRY} -le ${MAXRETRY} ] && [ ${DRC} -ne 0 ]
+          do
+                run_cmd
+		((TRY=TRY+1))
+          done
+	UPCOUNT=`egrep -c "${DOWNTOKEN}" ${OUTFILE}`
+	DOWNCOUNT=`egrep -c "${UPTOKEN}" ${OUTFILE}`
+	if [ ${UPCOUNT} -gt 0 -a ${DOWNCOUNT} -eq 0 ]
+	  then	echo "  <<TIER STATUS>> ALL tier services are operational" | tee -a ${REPORT}
+	  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -gt 0 ]
+		  then	echo "  <<TIER STATUS>> ALL tier services are NOT operational" | tee -a ${REPORT}
+		  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -eq 0 ]
+	  	  	  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
+				UNKNOWN=true
+			  else	echo "  <<TIER STATUS>> ALL tier services are NOT fully operational" | tee -a ${REPORT}
+			fi
+		fi
+		if [ "${LASTACTION}" = "start" -a ! -z "${CONF}" ]
+		  then	create_BOM "${UPTOKEN}" 
+			if [ -z "${PD}" ]
+	  	  	  then  PD="`grep \"${UPTOKEN}\" ${OUTFILE} | egrep -v \"SAS servers status:\" | head -1`"
+			fi
+		  else	if [ "${LASTACTION}" = "stop" -a -z "${PD}" ]
+	  	  	  then  PD="`grep \"${DOWNTOKEN}\" ${OUTFILE} | egrep -v \"SAS servers status:\" | head -1`"
+			fi
+		fi
+		PDHOST=${PDHOST:-$HOST}
+	fi
+	egrep "${UPTOKEN}|${DOWNTOKEN}" ${OUTFILE} |
+	while read TOKENRECORD
+	do
+	  	echo "                  ${TOKENRECORD}" | tee -a ${REPORT}
+	done
+}

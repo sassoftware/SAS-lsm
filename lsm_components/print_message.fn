@@ -1,0 +1,6 @@
+function print_message 
+{
+	((PMINCR=$1))
+	TITLE="`date`: action [${2}] tier [${PMINCR}:${NAME}] host [${HOST}] status [$3]"
+	echo "${TITLE}" | tee -a ${REPORT}
+}

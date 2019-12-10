@@ -1,0 +1,11 @@
+function operating_system_customize
+{
+        OSFLAVOR=`uname`
+        if [ ${OSFLAVOR} = "SunOS" ]
+          then  shopt -s expand_aliases
+                #alias whoami='/usr/ucb/whoami'
+                #alias egrep='/usr/xpg4/bin/egrep'
+                alias ps='/usr/bin/ps'
+                PATH=/usr/xpg4/bin:/usr/ucb:$PATH
+        fi
+}

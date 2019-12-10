@@ -1,0 +1,10 @@
+function stripsshiflocal
+{
+        CMD="${*}"
+        TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+        if [ "${THISHOST}" = "${TARGETHOST}" ]
+          then  CMD=`echo ${CMD} | sed "s!ssh ${SSHOPTIONS} ${INST}@${HOST}!!" | sed "s!^ !!"  | sed 's%\\\\%%g'`
+                SKIP=true
+        fi
+        echo "${CMD}"
+}

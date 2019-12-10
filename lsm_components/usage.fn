@@ -1,0 +1,17 @@
+function usage 
+{
+	echo ""
+	echo "<<USAGE>> [bash | sh] ${PROG} [-a <NUM> | -o <NUM> | -s] -c <CFG> [-e]"
+	echo ""
+	echo "  WHERE"
+	echo "    -a NUM     start deployment tier services from tier NUM to MAXTIERS"
+	echo "    -o NUM     stop deployment tier services from MAXTIERS to tier NUM"
+	echo "    -s         provide status of all deployment tier services"
+	echo "    -c CFG     specify configuration file"
+	echo "    -e         optionally extract potential tier error logs to a centralized location under !STATUSROOT/!CFG/"
+	echo ""
+	echo "  NOTE"
+	echo "    -a, -o, and -s options are not to be run concurrently" 
+	echo ""
+	exit 1
+}

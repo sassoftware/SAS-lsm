@@ -1,0 +1,62 @@
+function quorum_status
+{
+	((CHECK=1))
+	for UPNAME in ${ULIST} 
+	  do
+		get_array ${UPNAME}
+		USERVERS="$USERVERS ${HOST}"
+	  done
+	USERVERS=`echo ${USERVERS} | sed "s;^ ;;"`
+	for DREC in ${DLIST} ${QLIST} 
+	  do
+		DNAME=`echo ${DREC} | awk -F\- '{ print $1 }'`
+		DSTAT=`echo ${DREC} | awk -F\- '{ print $2 }'`
+		get_array ${DNAME}
+		case ${DSTAT} in
+		  stopped)	DSERVERS="${DSERVERS} ${HOST}"
+				;;
+		  paused)	PSERVERS="${PSERVERS} ${HOST}"
+				;;
+		  unknown)	QSERVERS="${QSERVERS} ${HOST}"
+				;;
+		esac
+	  done
+	DSERVERS=`echo ${DSERVERS} | sed "s;^ ;;"`
+	PSERVERS=`echo ${PSERVERS} | sed "s;^ ;;"`
+	QSERVERS=`echo ${QSERVERS} | sed "s;^ ;;"`
+        USERVERS=${USERVERS:-none}
+        DSERVERS=${DSERVERS:-none}
+        PSERVERS=${PSERVERS:-none}
+        QSERVERS=${QSERVERS:-none}
+	((TOTAL=UCOUNT+DCOUNT))
+        if [ ${QRC} -eq 1 ]
+	  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
+	  else	if [ ${UCOUNT} -gt ${DCOUNT} ] || [ ${UCOUNT} -eq ${DCOUNT} -a "${FIRSTNODE}" = "up" ]
+	  	  then	if [ "${ACTION}" = "status" ]
+			  then	echo "  <<TIER STATUS>> ALL tier services are operational" | tee -a ${REPORT}
+			  else	echo "  <<TIER STATUS>> ALL tier services have returned the proper status [quorum achieved]" | tee -a ${REPORT}
+			fi
+			((CHECK=0))
+	  	  else	for DREC in ${DLIST} 
+	  	  	  do
+				DNAME=`echo ${DREC} | awk -F\- '{ print $1 }'`
+				DSTAT=`echo ${DREC} | awk -F\- '{ print $2 }'`
+				get_array ${DNAME}
+                		if [ "${LASTACTION}" = "start" -o "${ACTION}" = "start" ] && [ ! -z "${CONF}" ]
+			  	  then	create_BOM "${NOTSTARTED}" cluster
+                		fi
+	  	  	  done
+	  		if [ "${ACTION}" = "status" ]
+	  	  	  then	echo "  <<TIER STATUS>> ALL tier services are NOT operational" | tee -a ${REPORT}
+	  	  	  else	echo "  <<TIER STATUS>> ALL tier services have NOT returned the proper status [${NOTSTOPPED}]" | tee -a ${REPORT}
+				TRC=1
+			fi
+			PD="Metadata cluster is in an incorrect state"
+			PDHOST=${PDHOST:-$HOST}
+		fi
+	fi
+	echo "                  cluster nodes started [${USERVERS}]" | tee -a ${REPORT}
+	echo "                  cluster nodes stopped [${DSERVERS}]" | tee -a ${REPORT}
+	echo "                  cluster nodes paused  [${PSERVERS}]" | tee -a ${REPORT}
+	echo "                  cluster nodes unknown [${QSERVERS}]" | tee -a ${REPORT}
+}

@@ -1,0 +1,49 @@
+function check_services 
+{
+	CALLEDFROM=${1}
+	((TRY=1))
+	((CHECK=1))
+	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"  
+	run_cmd
+	CHECKGOOD=`egrep -c "${GOODTOKEN}" ${OUTFILE}`
+	CHECKBAD=`egrep -c "${BADTOKEN}" ${OUTFILE}`
+	while [ ${TRY} -le ${MAXRETRY} -a "${CALLEDFROM}" != "check_dependencies" ] 
+	  do
+		if [ ${CHECKGOOD} -eq 0 -o ${CHECKBAD} -ne 0 ]
+		  then	((TRY=TRY+1))
+		  	sleep ${SLEEP}
+			run_cmd
+			CHECKGOOD=`egrep -c "${GOODTOKEN}" ${OUTFILE}`
+			CHECKBAD=`egrep -c "${BADTOKEN}" ${OUTFILE}`
+		  else	break
+		fi
+	  done
+	if [ ${CHECKGOOD} -eq 0 ] && [ ${CHECKBAD} -eq 0 ]
+	  then	if [ "${CALLEDFROM}" != "quorum" ]
+		  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
+		fi
+	  	UNKNOWN=true
+	  else	if [ ${CHECKBAD} -ne 0 ]
+	  	  then	echo "  <<TIER STATUS>> ALL tier services have NOT returned the proper status [${GOODTOKEN}]" | tee -a ${REPORT}
+	  		if [ "${CALLEDFROM}" != "quorum" ]
+			  then	TRC=1
+                	  	grep "${BADTOKEN}" ${OUTFILE} > ${TMPFILE3}
+                		while read TOKENRECORD
+                  	  	  do
+                			echo "                  ${TOKENRECORD}" | tee -a ${REPORT}
+					if [ -z "${PD}" ]
+				  	  then	PD=${PD:-$TOKENRECORD}
+						PDHOST=${PDHOST:-$HOST}
+					fi
+                  	  	  done <${TMPFILE3}
+				rm -f ${TMPFILE3} >/dev/null 2>&1
+				if [ ! -z "${CONF}" ]  && [ "${CALLEDFROM}" != "check_dependencies" ] 
+			  	  then  create_BOM "${BADTOKEN}"  
+				fi
+	  		  else	UNKNOWN=true
+			fi
+	  	  else	echo "  <<TIER STATUS>> ALL tier services have returned the proper status [${GOODTOKEN}]" | tee -a ${REPORT}
+			((CHECK=0))
+		fi
+	fi
+}

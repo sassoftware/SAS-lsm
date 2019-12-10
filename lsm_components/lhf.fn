@@ -1,0 +1,23 @@
+function lhf
+{
+	if  [ -d "${LOGFILES}" ] && [ -s "${TMPFILE1}" ] 
+       	  then	echo ""
+		echo ""  
+		echo "LOG ANALYSIS OF ERRORS AND WARNINGS for issue SAS_lsm [${ACTION}] on host [${PDHOST}]: ${PD}" 
+		echo ""  
+		((CTR=1))
+        	printf "%2s %12s %8s %s\n" "ITEM" "OCCURENCES" "TYPE" "  MESSAGE"
+  	  	while read RECORD
+          	  do
+                	NUMFO=`echo ${RECORD} | awk '{ print $1 }'`
+        		TYPEM=`echo ${RECORD} | awk '{ print $2 }' | sed "s;\:;;"`
+        		RECORD=`echo ${RECORD} | sed "s;${NUMFO};;"| sed "s;${TYPEM};;" | sed "s;\:;;" | sed "s;^ ;;g"`
+			RECORD[$CTR]="${TYPEM} ${RECORD}"
+			if [ ! -z "${RECORD}" ]
+  			  then	printf "%4s %12s %8s %s\n" "${CTR}" "${NUMFO}" "${TYPEM}" "${RECORD}" 
+                		((CTR=CTR+1))
+			fi
+          	  done <${TMPFILE1}
+		echo "" | tee -a ${REPORT}
+	fi
+}

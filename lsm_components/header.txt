@@ -1,0 +1,22 @@
+#
+# Copyright 2018 SAS Institute Inc.
+# SAS Campus Drive, Cary, North Carolina 27513, USA.
+# All rights reserved.
+#
+#
+# Version 3.0
+#
+# This script automates the management of UNIX/Linux based multi-tiered services.
+# Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
+# 
+# REVISION HISTORY
+# ----------------
+#
+# Date        Developer   		Change
+# ----        ---------  	 	------
+# 2016-07-11  Clifford J. Meyers	v1.0 birthday
+# 2017-06-01  Clifford J. Meyers	v2.0 add log capture functionality
+# 2018-01-12  Clifford J. Meyers	v3.0 add metadata clustering, mpp LASR services, user-defined services, log analysis
+# 2019-01-04  Clifford J. Meyers        v3.0 remove ssh requirement when SAS_lsm is located on the same physical server as a deployment tier
+# 2018-04-20  Greg W. Arledge           v3.0 add Solaris compatibility
+#

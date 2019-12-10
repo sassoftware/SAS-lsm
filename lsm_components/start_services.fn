@@ -1,0 +1,45 @@
+function start_services 
+{
+
+	check_dependencies
+	while [ ${DRC} -eq 0 ] && [ ${TIER} -le ${MAXTIERS} ] && [ "${UNKNOWN}" != "true" ]
+	  do
+		get_array ${TIER}
+		BADTOKEN=${TIERSTAS[$TIER]}
+		GOODTOKEN=${TIERSTOS[$TIER]}
+		if [ ! -z ${TIEX} ]
+                  then userExit_management pre
+                  else printf "  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"                    
+                fi
+                print_message "${TIER}" "${ACTION}" "begin"
+		if [ ${TIER} -ne ${TIERSTART} ] 
+		  then	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAR}" 
+		  else	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${REST}"
+		fi
+		if [ "${TYPE}" != "MDCV" ]
+		  then	run_cmd
+		fi
+		if [ "${TYPE}" != "MDCN" ]
+		  then	if [ "${TYPE}" != "MDCV" ]
+			  then	check_services start_services
+		  	  else	got_quorum start_services
+				get_array ${TIER}
+			fi
+		fi
+		if [ "${CHECK}" -eq 0 ]
+		  then	if [ ! -z ${TIEX} ]
+                          then userExit_management post success
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end success"
+		  else	if [ ! -z ${TIEX} ]
+                          then userExit_management post failure
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end failed - 003"
+			DRC=1
+		fi
+		echo "" | tee -a ${REPORT}
+		((TIER=TIER+1))
+	  done	
+}

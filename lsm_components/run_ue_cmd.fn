@@ -1,0 +1,22 @@
+function run_ue_cmd
+{
+        CMD=`stripsshiflocal ${CMD}`
+        if [ "$1" != "SILENT" ]
+          then  echo "    << EXECUTING >> ${CMD}" | tee -a ${REPORT}
+        fi
+        eval ${CMD} >${OUTFILE} 2>&1
+        UEFLAG=$?  #Flag variable to save return code of the current user-defined script
+        #echo "${UEFLAG}"
+        if [[ ! ${SCRIPTLIST[$i]} =~ "_required_" ]]
+          then #echo "Not Required"
+               DRC=0
+          else
+           case ${UEFLAG} in
+             0|1|2|4)      DRC=0
+                              ;;
+             *)            DRC=1
+                       echo "${DRC}"
+                              ;;
+           esac
+        fi
+}

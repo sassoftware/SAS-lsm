@@ -1,0 +1,43 @@
+function check_dependencies 
+{
+	((CDINCR=1))
+	while [ "${CDINCR}" -le "${MAXTIERS}" ] && [ ${DRC} -eq 0 ] && [ "${UNKNOWN}" != "true" ]
+	  do
+		get_array ${CDINCR}
+		if [ "${CDINCR}" -lt "${TIER}" ]
+		  then	EXPECTED=started
+			BADTOKEN=${TIERSTAS[$CDINCR]}
+			GOODTOKEN=${TIERSTOS[$CDINCR]}
+		  else	EXPECTED=stopped
+			BADTOKEN=${TIERSTOS[$CDINCR]}
+			GOODTOKEN=${TIERSTAS[$CDINCR]}
+		fi
+		if [ "${CDINCR}" -ne "${TIER}" ]
+		  then	print_message "${CDINCR}" "check dependencies tier ${EXPECTED}" "begin"
+			if [ "${TYPE}" = "MDCV" ]
+			  then  if [ "${TIERSTART}" != "1" ]
+				  then	got_quorum check_dependencies
+					get_array ${CDINCR}
+				  else	echo "  <<    NOTE   >> skipping Metadata cluster validation dependency check" | tee -a ${REPORT}
+					((CHECK=0))
+				fi
+			  else 	if [ "${TYPE}" = "MDCN" ]
+				  then	if [ "${TIERSTART}" = "1" ] 
+				  	  then	check_services check_dependencies
+				  	  else	echo "  <<    NOTE   >> skipping Metadata cluster node dependency check" | tee -a ${REPORT}
+						((CHECK=0))
+					fi
+				  else	check_services check_dependencies
+				fi
+			fi
+			if [ "${CHECK}" -eq 0 ]
+			  then  print_message "${CDINCR}" "check dependencies tier ${EXPECTED}" "end success"
+			  else  print_message "${CDINCR}" "check dependencies tier ${EXPECTED}" "end failed - 001"
+				DRC=2
+				TRC=2
+			fi
+			echo "" | tee -a ${REPORT}
+		fi
+		((CDINCR=CDINCR+1))
+	  done
+}

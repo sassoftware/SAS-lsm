@@ -1,0 +1,29 @@
+function status_services 
+{
+	if [ ! -z "${CLUSTERNODES}" ]
+	  then	QV=yes
+	fi
+	((TIER=1))
+        while [ ${TIER} -le ${MAXTIERS} ] 
+          do
+		QRC=0
+   		get_array ${TIER}
+                print_message "${TIER}" "services_status" "begin"
+		if [ "${QV}" = "yes" ]
+		  then	if [ "${TYPE}" = "MDCV" ]
+		  	  then	got_quorum status_services
+   				get_array ${TIER}
+				QV=no
+			  else	echo "  <<    NOTE   >> skipping Metadata cluster node validation" | tee -a ${REPORT}
+			fi
+		  else	tier_status ${TIER}
+		fi
+		if [ ${DRC} -eq 0 -a ${QRC} -ne 1 ]
+		  then	print_message "${TIER}" "services_status" "end success"
+	  	  else	UNKNOWN=true
+			print_message "${TIER}" "services_status" "end failed - 007"
+		fi
+		echo "" | tee -a ${REPORT}
+		((TIER=TIER+1))
+	  done
+}

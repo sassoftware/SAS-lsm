@@ -1,0 +1,36 @@
+function validate_cluster_config
+{
+	TYPE=${TIERTYPE[$INCR]}
+	case "${TYPE}" in
+	  MDCN)	if [ "${CLUSTERED}" = "no" ]
+		  then	if [ ${INCR} -eq 1 ]
+			  then	CLUSTERED=yes
+				CLUSTERNODES=1
+			  else	echo "ERROR: cluster definition start value [${INCR}] invalid, definition can only start from TIER 1"
+				CRC=1
+			fi
+		  else	if [ "${CLUSTERED}" = "done" ]
+			  then	echo "ERROR: TIERTYPE [${INCR}] value [${TYPE}]: you cannot have multiple clusters in the deployment"
+				CRC=1
+			  else	CLUSTERNODES="${CLUSTERNODES} ${INCR}"
+			fi
+		fi
+		;;
+	  MDCV)	if [ "${CLUSTERED}" = "no" ]
+		  then	echo "C ERROR: TIERTYPE [${INCR}] value [${TYPE}]: out of sync, no cluster nodes defined"
+			CRC=1
+		  else	if [ "${CLUSTERED}" = "done" ]	
+			  then	echo "ERROR: TIERTYPE [${INCR}] value [${TYPE}]: you cannot have multiple clusters in the deployment"
+				CRC=1
+			  else	CLUSTERED=done
+			  	CLUSTERNODES="${CLUSTERNODES} ${INCR}"
+			fi
+		fi
+		;;
+	  *)	if [ "${CLUSTERED}" != "no" -a "${CLUSTERED}" != "done" ]
+		  then	echo "ERROR: TIERTYPE [${INCR}] value [${TYPE}]: out of sync within a cluster definition"
+			CRC=1
+		fi
+		;;
+	esac
+}

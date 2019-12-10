@@ -1,0 +1,45 @@
+function userExit_management
+{
+        UETYPE=$1  #pre or post
+	UESTAT=$2  #success or failure
+        declare -a SCRIPTLIST
+	if [ -z ${UESTAT} ] # Will run in pre mode even without UESTAT.  Pre cannot contain success or failure because nothing has happened yet.
+	  then
+            while IFS=  read -r -d $'\0';  # While loop to read results of the find command into SCRIPTLIST array 
+	      do
+            SCRIPTLIST+=("$REPLY")
+        done < <(ssh ${SSHOPTIONS} ${INST}@${HOST} find ${TIEX} -name "*_${UETYPE}_${ACTION}_*" -print0 | sort -z) ######NEED TO SEE IF SORT IS ON SOLARIS#####
+        else           
+            while IFS=  read -r -d $'\0';  # While loop to read results of the find command into SCRIPTLIST array 
+	      do
+            SCRIPTLIST+=("$REPLY")
+        done < <(ssh ${SSHOPTIONS} ${INST}@${HOST} find ${TIEX} -name "*_${UETYPE}_${ACTION}_${UESTAT}_*" -print0 | sort -z)
+	fi
+        #echo "List: ${SCRIPTLIST[*]}"
+	if [ ${#SCRIPTLIST[@]} -eq 0 ]
+          then if [ ${UETYPE} = "post" ]
+                 then printf "\n  <<USEREXITS>> No UserExit Scripts Found for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+                 else printf "  <<USEREXITS>> No UserExit Scripts Found for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+               fi
+          else if [ ${UETYPE} = "post" ]
+                 then printf "\n  <<USEREXITS>> Beginning UserExit Script Executions for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+                 else printf "  <<USEREXITS>> Beginning UserExit Script Executions for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+               fi 
+               for i in "${!SCRIPTLIST[@]}"
+	         do
+                   CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${SCRIPTLIST[$i]}"
+	           run_ue_cmd
+                   if [ ${DRC} = 1 ]
+                     then
+                          if [ -z ${UESTAT} ]  #End script if required pre script fails
+                           then echo "<<ERROR>> ${SCRIPTLIST[i]} has failed, exiting SAS_lsm"
+                                exit 1
+                          else echo "Not in pre Mode"
+                               break #End loop if required post script fails
+                          fi
+                   fi
+	         done
+               echo ""
+        fi
+	unset SCRIPTLIST    
+}

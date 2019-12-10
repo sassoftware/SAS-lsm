@@ -1,0 +1,60 @@
+function stop_services 
+{
+	((TIER=MAXTIERS))
+	while [ ${DRC} -eq 0 ] && [ ${TIER} -ge ${TIERSTOP} ] && [ "${UNKNOWN}" != "true" ]
+	  do
+		get_array ${TIER}
+		BADTOKEN=${TIERSTOS[$TIER]}
+		GOODTOKEN=${TIERSTAS[$TIER]}
+                if [ ! -z ${TIEX} ]
+                  then userExit_management pre
+                  else printf "  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                fi
+		print_message "${TIER}" "${ACTION}" "begin"
+		case "${TYPE}" in
+		  MDCN)	;;
+		  MDCV)	get_active_cluster_node
+			if [ ! -z "${STOPCLUSTERNODE}" ]
+			  then	get_array ${STOPCLUSTERNODE}
+				CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STOP}"
+				run_cmd  
+			  else	echo "  <<    NOTE   >> skipping Metadata cluster validation stopCluster action" | tee -a ${REPORT}
+			fi
+			get_array ${TIER}
+			;;
+		  *)	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STOP}"
+		  	run_cmd
+			;;
+		esac
+		case "${TYPE}" in
+		  MDCV)	((CHECK=0))
+			;;
+		  MDCN)	check_services quorum
+			if [ "${UNKNOWN}" = "true" ]
+			  then	STOP=`echo ${STOP} | sed "s;stopCluster;stop;"`
+				CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STOP}"
+				run_cmd #>/dev/null 2>&1 
+				UNKNOWN=""
+				check_services stop_services
+			fi
+			;;
+		  *)	check_services stop_services
+			;;
+		esac
+		if [ "${CHECK}" -eq 0 ]
+		  then	if [ ! -z ${TIEX} ]
+                          then userExit_management post success
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end success"
+		  else	if [ ! -z ${TIEX} ]
+                          then userExit_management post failure
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end failed - 005"
+			DRC=1
+		fi
+		echo "" | tee -a ${REPORT}
+		((TIER=TIER-1))
+	  done	
+}

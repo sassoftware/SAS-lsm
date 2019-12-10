@@ -1,0 +1,66 @@
+function validate_tiers
+{
+	((INCR=1))
+	MAXTIERS=${MAXTIERS:-0}
+	while [ ${INCR} -le ${MAXTIERS} ]
+	  do
+		TIERDRCCHK=""
+ 		if [ -z "${TIERNAME[$INCR]}" ]
+		  then	TIERDRCCHK="TIERNAME"
+		fi
+  		if [ -z "${TIERINST[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERINST"
+		  else	INST=${TIERINST[$INCR]}
+		fi
+  		if [ -z "${TIERHOST[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERHOST"
+		  else	HOST=${TIERHOST[$INCR]}
+		fi
+  		if [ -z "${TIERSTAR[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTAR"
+		fi
+  		if [ -z "${TIERSTOP[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTOP"
+		fi
+  		if [ -z "${TIERREST[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERREST"
+		fi
+  		if [ -z "${TIERSTAT[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTAT"
+		fi
+  		if [ -z "${TIERSTAS[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTAS"
+		fi
+  		if [ -z "${TIERSTOS[$INCR]}" ]
+		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTOS"
+		fi
+		validate_cluster_config
+		if [ ! -z "${TIERDRCCHK}" ]
+		  then	CRC=1
+			echo "  <<ERROR>> Validation of TIER[${INCR}] failed, missing or invalid items:"  | tee -a ${REPORT}
+			for ITEM in ${TIERDRCCHK}
+			  do
+				echo "          ${ITEM}"  | tee -a ${REPORT}
+			  done
+		  else	testssh 
+			if [ $? -ne 0 ]
+		  	  then	echo "  <<ERROR>> ssh connection to TIER[${INCR}] failed: [${CMD}]"
+				CRC=1
+			fi
+		fi
+		((INCR=INCR+1))
+	done
+	if [ "${CLUSTERED}" != "no" -a "${CLUSTERED}" != "done" ]
+	  then	echo "ERROR: Cluster not properly defined, no end TIER TYPE value set for MDCV"
+		CRC=1
+	  else	if [ "${CLUSTERED}" = "done" ]
+	  	  then	if [ "${ACTION}" != "status" -a "${TIER}" != "1" ]
+			  then	CHECK=`echo ${CLUSTERNODES} |  grep -c ${TIER}`
+				if [ ${CHECK} -eq 1 ]
+		  	  	  then	echo "ERROR: Action requested for TIER [${TIER}] cannot be taken within the cluster defintion, you can only take action to/from TIER 1" 
+					CRC=1
+				fi
+			fi
+		fi
+	fi
+}

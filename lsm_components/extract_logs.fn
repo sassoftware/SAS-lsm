@@ -1,0 +1,42 @@
+function extract_logs
+{
+	LOGROOT=${LOGFILES}
+	echo "`date`: action [centralize logfiles] status [begin]" | tee -a ${REPORT}
+	grep "log\$" ${LOGFILESBOM} | awk -F\: '{ print $2"/"$3"/"$4 }' | awk 'BEGIN{FS=OFS="/"}{$NF=""; NF--; print}' | sort -u | xargs -i mkdir -p ${LOGROOT}/{} 
+	grep "log\$" ${LOGFILESBOM} | sort -u >${TMPFILE1}
+	for LOGRECORD in `cat ${TMPFILE1}`
+  	  do
+		INST=`echo ${LOGRECORD} | awk -F\: '{ print $1 }'`	
+		HOST=`echo ${LOGRECORD} | awk -F\: '{ print $2 }'`	
+		TIER=`echo ${LOGRECORD} | awk -F\: '{ print $3 }'`	
+		LOGF=`echo ${LOGRECORD} | awk -F\: '{ print $4 }'` 
+		case "${UNAME}" in
+		HP-UX)	AVAIL=`df -k ${LOGROOT} | grep free | awk '{ print $1 }'`
+			;;
+		AIX)	AVAIL=`df -k ${LOGROOT} | tail -1 | awk '{ print $3 }'` 
+			;;
+		*)	AVAIL=`df -k ${LOGROOT} | tail -1 | awk '{ print $(NF-2) }'`
+			;;
+		esac
+		DCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} du -s -k ${LOGF}"
+		DCMD=`stripsshiflocal ${DCMD}`
+		SIZE=`eval ${DCMD} | tail -1 | awk '{ print $1 }'`
+		if [ "${AVAIL}" -gt "${SIZE}" ]
+                  then  TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+                        if [ "${THISHOST}" = "${TARGETHOST}" ]
+                          then  cp -p ${LOGF} ${LOGROOT}/${HOST}/${TIER}/${LOGF} >/dev/null 2>&1
+                          else  scp -p ${INST}@${HOST}:${LOGF} ${LOGROOT}/${HOST}/${TIER}/${LOGF} >/dev/null 2>&1
+                        fi
+                        TRIM=true
+	  	  else	echo "  <<  WARNING  >> insufficient space to copy logs to [${LOGROOT}]"
+			TRIM=false
+			rm -rf ${LOGROOT} >/dev/null 2>&1
+			break
+		fi
+  	  done 
+	echo "`date`: action [centralize logfiles] status [end]" | tee -a ${REPORT}
+	echo "" | tee -a ${REPORT}
+	if [ "${TRIM}" = "true" ]
+	  then	trim_logs
+	fi
+}

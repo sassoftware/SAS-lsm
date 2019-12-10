@@ -44,10 +44,79 @@ function operating_system_customize
         OSFLAVOR=`uname`
         if [ ${OSFLAVOR} = "SunOS" ]
           then  shopt -s expand_aliases
+                #alias whoami='/usr/ucb/whoami'
+                #alias egrep='/usr/xpg4/bin/egrep'
                 alias ps='/usr/bin/ps'
-                # egrep  /usr/xpg4/bin/
-                # whoami /usr/ucb/
                 PATH=/usr/xpg4/bin:/usr/ucb:$PATH
+        fi
+}
+
+function userExit_management
+{
+        UETYPE=$1  #pre or post
+	UESTAT=$2  #success or failure
+        declare -a SCRIPTLIST
+	if [ -z ${UESTAT} ] # Will run in pre mode even without UESTAT.  Pre cannot contain success or failure because nothing has happened yet.
+	  then
+            while IFS=  read -r -d $'\0';  # While loop to read results of the find command into SCRIPTLIST array 
+	      do
+            SCRIPTLIST+=("$REPLY")
+        done < <(ssh ${SSHOPTIONS} ${INST}@${HOST} find ${TIEX} -name "*_${UETYPE}_${ACTION}_*" -print0 | sort -z) ######NEED TO SEE IF SORT IS ON SOLARIS#####
+        else           
+            while IFS=  read -r -d $'\0';  # While loop to read results of the find command into SCRIPTLIST array 
+	      do
+            SCRIPTLIST+=("$REPLY")
+        done < <(ssh ${SSHOPTIONS} ${INST}@${HOST} find ${TIEX} -name "*_${UETYPE}_${ACTION}_${UESTAT}_*" -print0 | sort -z)
+	fi
+        #echo "List: ${SCRIPTLIST[*]}"
+	if [ ${#SCRIPTLIST[@]} -eq 0 ]
+          then if [ ${UETYPE} = "post" ]
+                 then printf "\n  <<USEREXITS>> No UserExit Scripts Found for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+                 else printf "  <<USEREXITS>> No UserExit Scripts Found for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+               fi
+          else if [ ${UETYPE} = "post" ]
+                 then printf "\n  <<USEREXITS>> Beginning UserExit Script Executions for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+                 else printf "  <<USEREXITS>> Beginning UserExit Script Executions for ${UETYPE} ${ACTION} ${UESTAT}\n\n"
+               fi 
+               for i in "${!SCRIPTLIST[@]}"
+	         do
+                   CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${SCRIPTLIST[$i]}"
+	           run_ue_cmd
+                   if [ ${DRC} = 1 ]
+                     then
+                          if [ -z ${UESTAT} ]  #End script if required pre script fails
+                           then echo "<<ERROR>> ${SCRIPTLIST[i]} has failed, exiting SAS_lsm"
+                                exit 1
+                          else echo "Not in pre Mode"
+                               break #End loop if required post script fails
+                          fi
+                   fi
+	         done
+               echo ""
+        fi
+	unset SCRIPTLIST    
+}
+
+function run_ue_cmd
+{
+        CMD=`stripsshiflocal ${CMD}`
+        if [ "$1" != "SILENT" ]
+          then  echo "    << EXECUTING >> ${CMD}" | tee -a ${REPORT}
+        fi
+        eval ${CMD} >${OUTFILE} 2>&1
+        UEFLAG=$?  #Flag variable to save return code of the current user-defined script
+        #echo "${UEFLAG}"
+        if [[ ! ${SCRIPTLIST[$i]} =~ "_required_" ]]
+          then #echo "Not Required"
+               DRC=0
+          else
+           case ${UEFLAG} in
+             0|1|2|4)      DRC=0
+                              ;;
+             *)            DRC=1
+                       echo "${DRC}"
+                              ;;
+           esac
         fi
 }
 
@@ -196,12 +265,6 @@ function validate_tiers
   		if [ -z "${TIERSTOS[$INCR]}" ]
 		  then	TIERDRCCHK="${TIERDRCCHK} TIERSTOS"
 		fi
-                if [ -z "${TIERLOGD[$INCR]}" ]
-                  then  TIERDRCCHK="${TIERDRCCHK} TIERLOGD"
-                fi
-                if [ -z "${TIERTYPE[$INCR]}" ]
-                  then  TIERDRCCHK="${TIERDRCCHK} TIERTYPE"
-                fi
 		validate_cluster_config
 		if [ ! -z "${TIERDRCCHK}" ]
 		  then	CRC=1
@@ -397,12 +460,11 @@ function trim_logs
 	TOKEN3=`echo ${TOKEN} | sed "s;-;/;g"`
 	TOKEN4="${YEAR}${MONT}${DAY}:${HOUR}"
 	TOKEN5="${YEAR}-${MONT}-${DAY} ${HOUR}"
-	TOKEN6="${DAY}-${MONT}-${YEAR} ${HOUR}"
 	echo "`date`: action [trim logfiles] status [begin]" | tee -a ${REPORT}
 	find ${LOGFILES} -type f |
 	while read FILE
   	  do
-		FOUND=`egrep -n "${TOKEN}|${TOKEN2}|${TOKEN3}|${TOKEN4}|${TOKEN5}|${TOKEN6}" ${FILE} | head -1 | awk -F\: '{ print $1 }'`
+		FOUND=`egrep -n "${TOKEN}|${TOKEN2}|${TOKEN3}|${TOKEN4}|${TOKEN5}" ${FILE} | egrep -v SASEnvironmentManager | head -1 | awk -F\: '{ print $1 }'`
 		if [ ! -z "${FOUND}" ]
 	  	  then	FS=`wc -l ${FILE} | awk '{ print $1 }'`
 			((TAIL=FS-FOUND+1))
@@ -475,7 +537,6 @@ function stripsshiflocal
         echo "${CMD}"
 }
 
-
 function run_cmd 
 {
 	CMD=`stripsshiflocal ${CMD}`
@@ -521,6 +582,7 @@ function get_array
 	STAT=${TIERSTAT[$GAINCR]}
 	CONF=${TIERLOGD[$GAINCR]}
 	TYPE=${TIERTYPE[$GAINCR]}
+        TIEX=${TIEREXIT[$GAINCR]}
 }
 
 function check_services 
@@ -748,7 +810,11 @@ function start_services
 		get_array ${TIER}
 		BADTOKEN=${TIERSTAS[$TIER]}
 		GOODTOKEN=${TIERSTOS[$TIER]}
-		print_message "${TIER}" "${ACTION}" "begin"
+		if [ ! -z ${TIEX} ]
+                  then userExit_management pre
+                  else printf "  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"                    
+                fi
+                print_message "${TIER}" "${ACTION}" "begin"
 		if [ ${TIER} -ne ${TIERSTART} ] 
 		  then	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAR}" 
 		  else	CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${REST}"
@@ -764,8 +830,16 @@ function start_services
 			fi
 		fi
 		if [ "${CHECK}" -eq 0 ]
-		  then	print_message "${TIER}" "${ACTION}" "end success"
-		  else	print_message "${TIER}" "${ACTION}" "end failed - 003"
+		  then	if [ ! -z ${TIEX} ]
+                          then userExit_management post success
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end success"
+		  else	if [ ! -z ${TIEX} ]
+                          then userExit_management post failure
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end failed - 003"
 			DRC=1
 		fi
 		echo "" | tee -a ${REPORT}
@@ -782,6 +856,10 @@ function stop_services
 		get_array ${TIER}
 		BADTOKEN=${TIERSTOS[$TIER]}
 		GOODTOKEN=${TIERSTAS[$TIER]}
+                if [ ! -z ${TIEX} ]
+                  then userExit_management pre
+                  else printf "  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                fi
 		print_message "${TIER}" "${ACTION}" "begin"
 		case "${TYPE}" in
 		  MDCN)	;;
@@ -814,8 +892,16 @@ function stop_services
 			;;
 		esac
 		if [ "${CHECK}" -eq 0 ]
-		  then	print_message "${TIER}" "${ACTION}" "end success"
-		  else	print_message "${TIER}" "${ACTION}" "end failed - 005"
+		  then	if [ ! -z ${TIEX} ]
+                          then userExit_management post success
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end success"
+		  else	if [ ! -z ${TIEX} ]
+                          then userExit_management post failure
+                          else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+                        fi
+                        print_message "${TIER}" "${ACTION}" "end failed - 005"
 			DRC=1
 		fi
 		echo "" | tee -a ${REPORT}

@@ -1,0 +1,54 @@
+function validate_cfgfile 
+{
+	CRC=0
+	echo "" | tee -a ${REPORT}
+	echo "Configuration file validation [${CFGFILE}] status [begin]" | tee -a ${REPORT}
+	TRIMOFFSET=${TRIMOFFSET:-1}
+	TEST=`expr ${TRIMOFFSET} - 0 2>/dev/null`
+	if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> TRIMOFFSET values are positive whole numbers." | tee -a ${REPORT}
+		CRC=1
+	fi
+        TEST=`expr ${SLEEP} - 0 2>/dev/null`
+	if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> MAXRETRY values are positive whole numbers." | tee -a ${REPORT}
+		CRC=1
+	fi
+        TEST=`expr ${SLEEP} - 0 2>/dev/null`
+        if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> SLEEP values are positive whole numbers." | tee -a ${REPORT}
+		CRC=1
+	fi
+        TEST=`expr ${MAXTIERS} - 0 2>/dev/null`
+        if [ -z "${TEST}" ]
+	  then	echo "  <<ERROR>> MAXTIERS value is not numeric." | tee -a ${REPORT}
+		CRC=1
+	fi
+	if [ "${TIERSTOP}" ]
+          then	TEST=`expr ${TIERSTOP} - 0 2>/dev/null`
+		if [[ -z "${TEST}" ]] || [ ${TIERSTOP} -gt ${MAXTIERS} ] || [ ${TIERSTOP} -lt 1 ]
+	  	  then	echo "<<ERROR>> Valid tier values are [${MAXTIERS}-1]" | tee -a ${REPORT}
+			echo "" | tee -a ${REPORT}
+			CRC=1
+		fi
+	fi
+	if [ "${TIERSTART}" ]
+          then	TEST=`expr ${TIERSTART} - 0 2>/dev/null`
+		if [[ -z "${TEST}" ]] || [ ${TIERSTART} -gt ${MAXTIERS} ] || [ ${TIERSTART}  -lt 1 ]
+	  	  then	echo "<<ERROR>> Valid tier values are [1-${MAXTIERS}]" | tee -a ${REPORT}
+			CRC=1
+		fi
+	fi
+	if [ ${CRC} -eq 0 ]
+	  then	validate_tiers
+	fi
+	if [ ${CRC} -eq 1 ]
+	  then	UNKNOWN=true
+		echo "Configuration file validation [${CFGFILE}] status [end failed - 000]" | tee -a ${REPORT}
+		echo "" | tee -a ${REPORT}
+		rm -f ${OUTFILE} >/dev/null 2>&1
+		exit ${CRC}
+	  else	echo "Configuration file validation [${CFGFILE}] status [end success]" | tee -a ${REPORT}
+		echo "" | tee -a ${REPORT}
+	fi
+}

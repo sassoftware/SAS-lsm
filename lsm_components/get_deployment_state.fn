@@ -1,0 +1,51 @@
+function get_deployment_state
+{
+	STATUS=FAILURE
+	if [ ${DRC} -eq 0 ]
+	  then	STATUS=SUCCESS
+	fi
+  	case "${ACTION}" in
+	  start) 	case ${TRC} in
+	  		  0)	MSG="<<${STATUS}>> Deployment tier services are operational" 
+				;;
+		  	  1)  	MSG="<<${STATUS}>> Deployment tier services are NOT fully operational"
+				;;
+			  2)  	MSG="<<${STATUS}>> Deployment tier services dependency check failed" 
+				rm -f ${LOGFILESBOM} >/dev/null 2>&1
+				;;
+			esac
+				;;
+	  stop) 	STAN=${TIERNAME[$MAXTIERS]}
+			STON=${TIERNAME[$TIERSTOP]}
+			case ${TRC} in
+			  0)  	STATE="NOT operational"
+				;;
+			  1)    STATE="NOT fully operational"
+				;;
+			  *)	STATE="in an unknown state"
+				;;
+			esac
+				MSG="<<${STATUS}>> Deployment tier services are ${STATE} from [${MAXTIERS}:${STAN}] to tier [${TIERSTOP}:${STON}]" 
+				;;
+	  status)	DOWN=`grep -c "ALL tier services are NOT operational" ${REPORT}`
+			UP=`grep -c "ALL tier services are operational" ${REPORT}`
+			XX=`grep -c "ALL tier services are NOT fully operational" ${REPORT}`
+			if [ ${DOWN} -gt 0 -a ${UP} -gt 0 ] || [ ${XX} -gt 0 ]
+			  then	MSG="<<STATUS>> Deployment tier services are NOT fully operational" 
+				if [ "${LASTACTION}" = "start" ]
+				  then	STATUS=FAILURE
+					TRC=1
+				fi
+			  else	if [ ${DOWN} -eq 0 ]
+				  then	MSG="<<STATUS>> Deployment tier services are operational"  
+				  else	MSG="<<STATUS>> Deployment tier services are NOT operational"
+
+					if [ ${LASTACTION} = "start" ]
+					  then	STATUS=FAILURE
+						TRC=1
+					fi
+				fi
+			fi
+			;;
+		esac
+}

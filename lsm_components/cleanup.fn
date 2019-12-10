@@ -1,0 +1,70 @@
+function cleanup 
+{
+	if [ "${UNKNOWN}" = "true" ]
+  	  then	MSG="<<FAILURE>> Deployment tier services are in an unknown state"
+		TRC=1
+		DRC=1
+	  else	get_deployment_state
+		if [ -f "${LOGFILESBOM}" ] && [ `wc -l ${LOGFILESBOM} | awk '{ print $1 }'` -gt 2  ]
+	  	  then	if [ "${EXTRACTLOGS}" = "true" ] && [ ! -d ${LOGFILES} ] 
+		  	  then	mkdir ${LOGFILES} >/dev/null 2>&1
+				cp -p ${CFGFILE} ${LOGFILES}/
+				extract_logs
+			fi
+	  	  else rm -f ${LOGFILESBOM} >/dev/null 2>&1
+		fi
+	fi
+	if [ -d ${LOGFILES} ] 
+	  then	SASCONFIG=`echo ${TIERSTAR[$POBAD]} | sed "s;nohup ;;" | awk '{ print $1 }'`
+		SASCONFIG=${SASCONFIG%/*}
+		while true
+		  do
+			case "${SASCONFIG}" in
+			  */Lev[1-9])	break
+					;;
+			  */)		SASCONFIG=${SASCONFIG%/*}
+					;;
+			  *)		break
+					;;
+			esac
+		  done
+		build_track_details
+	fi
+	echo "Please see ${REPORT} for execution details" | tee -a ${REPORT}
+	if [ -f "${LOGFILESBOM}" ] 
+	  then	echo "           ${LOGFILESBOM} for a listing of logfiles" | tee -a ${REPORT}
+	fi
+	if [ -d ${LOGFILES} ]
+	  then	echo "           ${LOGFILES} for the centralized logfiles" | tee -a ${REPORT}
+	fi
+	if [ -f "${LOGFILESANALYSIS}" ]
+	  then	echo "" | tee -a ${REPORT}
+		echo "           If you would like to open a SAS problem report, please review ${LOGFILESANALYSIS} for helpful information" | tee -a ${REPORT}
+	fi
+	if [ "${ACTION}" = "status" ]
+	  then	if [ ${LASTACTION} = "start" ]
+		  then	if [ ${TRC} -eq 1 ] 
+	  	  	  then	MAILADMIN=yes
+				STATUS=FAILURE
+			fi
+		  else	TRC=${LASTACTIONRC}
+		fi
+		echo "${LASTACTION}:${TRC}" > ${STATUSDIR}/.lastaction
+	  else	MAILADMIN=yes
+		echo "${ACTION}:${DRC}" > ${STATUSDIR}/.lastaction
+	fi
+	echo "" | tee -a ${REPORT}
+	echo "" | tee -a ${REPORT}
+	if [ ! -z "${POBAD}" ]
+	  then	 MSG="${MSG} [failure on tier ${POBAD}]"
+	fi
+	echo "${MSG}" >> ${REPORT}
+	if [ ! -z "${SASADMIN}" ] && [ "${MAILADMIN}" = "yes" ]
+	  then	mailx -s "`date` ${PROG} ${STATUS} ${ACTION} ${CFGFILE##*/}" ${SASADMIN} < ${REPORT} 
+	fi
+	lhf
+	rm -f ${OUTFILE} ${TMPFILE1} ${TMPFILE2} ${TMPFILE3} ${STATUSDIR}/SDW*  >/dev/null 2>&1
+	echo "${MSG}" 
+	echo "" 
+	exit ${DRC}
+}

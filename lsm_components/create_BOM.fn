@@ -1,0 +1,49 @@
+function create_BOM
+{
+	if [ -z "${POBAD}" -o "$2" = "cluster" ]
+	  then	POBAD=${GAINCR}
+		CT=${1}
+		if [ ! -f ${LOGFILESBOM} ]
+	  	  then	bttf
+	  		echo "${HA}" > ${LOGFILESBOM}
+			echo "" >>${LOGFILESBOM}
+		fi
+		echo "${CONF}" > ${TMPFILE1}
+		SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${CONF} -type f -name \"\*.srv\" 2>/dev/null"
+		SCMD=`stripsshiflocal ${SCMD}`
+		for RECORD in `eval ${SCMD} | egrep "^/"`
+ 	  	  do
+			TCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} cat ${RECORD}"
+			TCMD=`stripsshiflocal ${TCMD}`
+			eval ${TCMD}  | egrep -v "^#" | tail -2 | head -1 >> ${TMPFILE1}
+ 	  	  done
+		rm -f ${TMPFILE2} >/dev/null 2>&1
+		if [ -s ${TMPFILE1} ]
+		  then	for RECORD in `cat ${TMPFILE1} | awk '{ print length, $0 }' | sort -nu | awk '{ print $2 }' | egrep -v ${CONF}/`
+  	  	  	  do
+				SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${RECORD} -mmin -60 -type f -name \"\*.log\" 2>/dev/null"
+				SCMD=`stripsshiflocal ${SCMD}`
+				for RECORD2 in `eval ${SCMD} | egrep -v 'kahadb|tmlog' |  egrep "^/"`
+				  do
+					echo ${RECORD2} >> ${TMPFILE2}
+				  done
+  	  	  	done
+		fi
+		if [ -s ${TMPFILE2} ]
+  	  	  then	echo "Server [${HOST}] [${NAME}] issues" >> ${LOGFILESBOM}
+			echo "" >> ${LOGFILESBOM}
+			echo "<<TIER SERVICES>>" 	 >> ${LOGFILESBOM}
+			CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}" 
+			CMD=`stripsshiflocal ${CMD}`
+			eval ${CMD} | egrep "${CT}" >> ${LOGFILESBOM}
+			echo "" >> ${LOGFILESBOM}
+			echo "<<  LOG FILES  >>" >> ${LOGFILESBOM}
+			cat ${TMPFILE2} |
+			while read RECORD
+		  	  do
+				echo "${INST}:${HOST}:${TIER}:${RECORD}" >> ${LOGFILESBOM}
+		  	  done 
+			echo "" >> ${LOGFILESBOM}
+		fi
+	fi
+}

@@ -1,0 +1,15 @@
+function testssh
+{
+
+        CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} -o 'BatchMode=yes' -o 'ConnectionAttempts=1' true"
+        SKIP=false
+        if [ "${ACTION}" = "stop" ]
+          then  if [ "${INCR}" -lt "${TIERSTOP}" ]
+                  then  SKIP=true
+                fi
+        fi
+        TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
+        if [ "${SKIP}" = "false" -a "${TARGETHOST}" != "${THISHOST}" ]
+          then  eval ${CMD} >${OUTFILE} 2>&1
+        fi
+}

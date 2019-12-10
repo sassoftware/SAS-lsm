@@ -1,0 +1,71 @@
+function initialize 
+{
+	cd ${DIR}
+	CHECK=`echo "${PWD}" | grep -c "Utilities"`
+	if [ ${CHECK} -ne 0 ]
+	  then	echo "<<ERROR>> cannot execute ${PROG} from directory [${PWD}]"
+		exit 1
+	fi
+	cd - >/dev/null 2>&1
+	operating_system_customize
+	if [ $(whoami) = "root" ]
+	  then	echo "<<ERROR>> cannot execute ${PROG} as root"
+		exit 1
+	fi
+	if [ ! -f "${CFGFILE}" -o ! -r "${CFGFILE}" ]
+	  then	echo "<<ERROR>> unreadable configuration file [${CFGFILE}] in [${PWD}]"
+		usage
+	  else	if [ "${CFGFILE}" = "${CFGFILE##*/}" ]
+		  then	. ${DIR}/${CFGFILE}
+		  else	. ${CFGFILE}
+		fi
+		STATUSROOT=${STATUSROOT:-/tmp}
+		if [ ! -w "${STATUSROOT}" ]
+		  then	echo "<<ERROR>> status report root directory [${STATUSROOT}] is not writable"
+			exit 1
+		  else	STATUSDIR=${STATUSROOT}/${CFGFILE##*/}
+			CHECK=`echo "${STATUSDIR}" | grep -c "Utilities"`
+        		if [ ${CHECK} -ne 0 ]
+          		  then  echo "<<ERROR>> cannot store reports and logfiles within directory [${STATUSDIR}]"
+                		exit 1
+			fi
+			mkdir -p ${STATUSDIR} >/dev/null 2>&1
+			if [ $? -ne 0 ]
+		  	  then	echo "<<ERROR>> Cannot create STATUSDIR directory [${STATUSDIR}]"
+				exit 1
+			  else	if [ ! -f ${STATUSDIR}/.lastaction ]
+	   			  then	echo "stop:0" > ${STATUSDIR}/.lastaction
+				fi
+			fi
+			THISHOST=`hostname | awk -F\. '{ print $1 }'`
+			LOGFILESBOM=${STATUSDIR}/logfiles.BOM
+			LOGFILESANALYSIS=${STATUSDIR}/logfiles.ANALYSIS
+			LOGFILES=${STATUSDIR}/logfiles
+			REPORT=${STATUSDIR}/report.${ACTION}
+			OUTFILE=${STATUSDIR}/${PROG}.outfile.${RANDOM}
+			rm -f ${STATUSDIR}/${PROG}.* ${STATUSDIR}/SDW*.log >/dev/null 2>&1
+			if tty -s
+          		  then	RUNFROM=0
+          		  else  RUNFROM=1
+        		fi
+        		IS_RUNNING=`ps -fu $(whoami) | grep ${PROG} | egrep -v $$ | grep -vc grep`
+        		if [ "${IS_RUNNING}" -gt ${RUNFROM} ]
+          	  	  then  echo "<<ERROR>> script [${PROG}] is currently being executed" 
+				exit 1
+			  else	UNAME=`uname -a | awk '{ print $1 }'`
+				PAUSED="is PAUSED on"
+			  	LANG=C
+				DRC=0
+				TRC=0
+				CLUSTERED=no
+				LASTACTION=`cat ${STATUSDIR}/.lastaction 2>/dev/null | awk -F\: '{ print $1 }'`
+				LASTACTIONRC=`cat ${STATUSDIR}/.lastaction 2>/dev/null | awk -F\: '{ print $2 }'`
+				TMPFILE1=/tmp/tmpfile1.${RANDOM}
+				TMPFILE2=/tmp/tmpfile2.${RANDOM}
+				TMPFILE3=/tmp/tmpfile3.${RANDOM}
+		  	  	echo "COMMAND: ${COMMAND}" >${REPORT}
+		  		validate_cfgfile
+			fi
+		fi
+	fi
+}
