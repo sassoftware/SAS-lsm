@@ -1,0 +1,374 @@
+#!/bin/bash
+#
+# SAS_lsm CONFIGURATION FILE WIZARD
+#
+# Version 1.0: 12 Sept 2019. Produced by Greg Arledge and Andy Foreman.
+##########
+#
+# Use this utility for guided assistance on creating the SAS_lsm configuration file.
+#
+# This utiity makes some assumptions that your deployment is relatively standard,
+# but can serve as an outline to complete most of the file generation work automatically
+# even in obscure deployment configurations. The output configuration file can be edited
+# manually for further modifications or customizations as required for your environment.
+#
+# Please open a track with SAS Technical Support if you have questions about using this
+# utility or need assistance in adding additional modifications to the configuration file
+# which it generates.
+#
+##########
+
+function gatherInfoMeta ()
+{
+          read -e -p "Do you have a clustered Metadata Server? (y/N): " clusterMeta
+            if [ -z ${clusterMeta} ]
+              then clusterMeta="N"
+            fi
+            if [ ${clusterMeta} = "y" ]
+              then echo ""
+                   read -e -p "List all hostnames of your Metadata Server cluster with spaces between each:`echo $'\n '`" metaHosts
+                   METALIST=(${metaHosts})
+                   totalMachines=$(( $numMachines + 1 ))  #Adding tier to count for MDCV                     
+              else echo ""
+                   read -e -p "What is the hostname of your Metadata Server?: " metaSingleHost
+                   METALIST=(${metaSingleHost})
+                   totalMachines=${numMachines}
+            fi
+}
+
+function gatherInfoComp ()
+{
+          read -e -p "List all hostnames of Compute tier machines where sas.servers is run with spaces between each:`echo $'\n '`" computeHosts
+            COMPUTELIST=(${computeHosts})
+}
+
+function gatherInfoMid ()
+{
+          read -e -p "List all hostnames of MidTier (Web tier) machines with spaces between each:`echo $'\n '`" midtierHosts
+            MIDTIERLIST=(${midtierHosts})
+}  
+
+function gatherInfoCustom ()
+{
+          read -e -p "Do you have any other services you want SAS_lsm to manage?  (y/N): " otherTiers
+          if [ -z ${otherTiers} ]
+            then otherTiers="N"
+          fi
+          if [ ${otherTiers} = "y" ]
+            then read -e -p "How many tiers do you want to add? " numOtherTiers
+          fi
+}
+
+function machineMath ()
+{
+          numMetaMachines="$(echo "${#METALIST[@]}")"
+          numCompMachines="$(echo "${#COMPUTELIST[@]}")"
+          numMidMachines="$(echo "${#MIDTIERLIST[@]}")"
+          providedHostNum=$(($numMetaMachines + $numCompMachines + $numMidMachines))
+	  if [ ! ${providedHostNum} -eq ${numMachines} ]
+            then echo "The provided number of hostnames does not match the specified number of machines in your SAS deployment."
+                 exit 1
+            #else
+                 #echo "Correct number of machines provided."
+          fi
+}
+
+function gatherInfoMisc ()
+{
+ echo ""
+ read -e -p "Enter a file path where you would like to save the configuration file (ex. /opt/sas/utilities/SAS_lsm.cfg):`echo $'\n '`" outputFile
+ echo ""
+ checkFile
+ echo ""
+ read -e -p "Enter the file path to your configuration directory (ex. /opt/sas/config/Lev1): " configDir
+ echo ""
+ read -e -p "Enter the username of the SAS Installation User: " installUser
+ echo ""
+ read -e -p "How many machines are in your SAS Deployment?: " numMachines
+   if [ ${numMachines} -eq 1 ]
+     then echo ""
+          read -e -p "What is the hostname of your machine?: " onetierHost
+          totalMachines=1
+     else  
+          echo ""
+          gatherInfoMeta
+          echo ""
+          gatherInfoComp
+          echo ""
+          gatherInfoMid
+          machineMath
+   fi 
+}
+
+function checkFile () {
+
+currentDate=`date "+%FT%T"` #obtain executing date-time in format <YYYY-MM-DD>T<HH:MM:SS>
+
+if [[ -f "${outputFile}" ]]; then
+        echo "A file already exists at the path ${outputFile}."
+        echo "The current file will be backed up as ${outputFile}_${currentDate}.bak, then overwritten."
+        read -e -p "Do you want to continue (Y/n) ? " overwriteCheck
+        if [ "${overwriteCheck}" = "Y" ]; then
+                mv ${outputFile} ${outputFile}_${currentDate}.bak
+                if [[ -f ${outputFile} ]] || [[ ! -f ${outputFile}_${currentDate}.bak ]]; then
+                        echo "Error backing up current configuration file. Please verify the user executing this script can access the location and has permissions to move the file."
+                        exit 1
+                fi
+                touch ${outputFile}
+                if [[ ! -f ${outputFile} ]]; then
+                        echo "Error writing file to path: ${outputFile}"
+                        echo "Please verify the user executing this script can access and write to the specified location."
+                        exit 1
+                fi
+                ## echo "Successfully verfied file access, proceeding to script generation."
+        else
+                echo "Exiting script due to user input. No files have been created or modified."
+                exit 1
+        fi
+else
+        ##echo "No file currently at path ${outputFile}."
+        touch ${outputFile}
+        if [[ ! -f ${outputFile} ]]; then
+                echo "Error writing file to path: ${outputFile}"
+                echo "Please verify the user executing this script can access and write to the specified location."
+                exit 1
+        fi
+        ##echo "Successfully verfied file access, proceeding to script generation."
+fi
+}
+
+
+function buildConfigFile ()
+{
+buildMiscVars
+if [ ${numMachines} -eq 1 ]
+  then host=${onetierHost}
+       tierName='Single Tier SAS Environment'
+	   tierNum=1
+	   fillerText beforeStandard 
+       buildStandardTiers
+	   fillerText afterStandard
+  else 
+       echo "------------------------------"
+       echo "     TIER IDENTIFICATION"
+       echo "------------------------------"
+       if [ ${clusterMeta} = "N" ]
+         then COMPLETELIST=( "${METALIST[@]}" "${COMPUTELIST[@]}" "${MIDTIERLIST[@]}" )  ## We don't care about the machine type.  Treat every tier as standard.  Combine all arrays into one for looping purposes.    
+              fillerText beforeStandard
+			  for i in "${!COMPLETELIST[@]}"
+			    do 
+				   ##echo "test bug: ${COMPLETELIST[$i]}"
+				   host="${COMPLETELIST[$i]}"
+				   tierNum=$(( $i + 1 ))
+                                   echo ""
+				   read -e -p "Provide the name you want to identify this tier (ex. Meta1, Meta2, Compute, Midtier, etc.): (${host}) `echo $'\n '`"  nameTest
+				   if [ -z "${nameTest}" ]
+				     then tierName=${host}
+					 else tierName=${nameTest}
+				   fi
+				   buildStandardTiers
+				done
+			  fillerText afterStandard
+	     else fillerText beforeMetaCluster
+                  for i in "${!METALIST[@]}"
+                    do
+                         ##echo "test bug: ${METALIST[$i]}"
+                         host="${METALIST[$i]}"
+                         tierNum=$(( $i + 1 ))
+                         echo ""
+        	         read -e -p "Provide the name you want to identify this machine/tier (ex. Meta1, Meta2, Compute, Midtier, etc.): (${host}) `echo $'\n '`"  nameTest
+                         if [ -z "${nameTest}" ]
+                           then tierName=${host}
+                           else tierName=${nameTest}
+                         fi
+                         buildMetadataTiers
+                    done
+                  tierNum=$(( tierNum + 1 ))
+                  buildMetadataValidation
+                  fillerText afterMetaCluster
+                  REMAININGLIST=( "${COMPUTELIST[@]}" "${MIDTIERLIST[@]}" )
+		  fillerText beforeStandard
+		    for i in "${!REMAININGLIST[@]}"
+		      do 
+			   ##echo "test bug: ${REMAININGLIST[$i]}"
+			   host="${REMAININGLIST[$i]}"
+			   if [ $i -eq 0 ]
+                             then tierNum=$(( tierNum + $i + 1 ))
+                             else tierNum=$(( tierNum + 1 ))
+                           fi
+                           echo ""
+			   read -e -p "Provide the name you want to identify this machine/tier (ex. Meta1, Meta2, Compute, Midtier, etc.): (${host}) `echo $'\n '`"  nameTest
+			   if [ -z "${nameTest}" ]
+			     then tierName=${host}
+				 else tierName=${nameTest}
+			   fi
+			   buildStandardTiers
+	              done
+		  fillerText afterStandard                 
+	   fi
+  fi
+}
+
+function buildMiscVars ()
+{
+cat << EOF > ${outputFile}
+##########################################################################################################################################
+## BEGIN MISCELLANEOUS VARIABLES
+
+## REQUIRED: CONFIGURATION DIRECTORY (E.G. /opt/SAS/94/production/config/Lev1)
+## if you have unique CONFIGURATION directories for the TIERs in your deployment, you can define the CONFIGDIR value before each TIER definition
+CONFIGDIR=${configDir}
+
+## REQUIRED: if you have unique INSTANCE OWNER userids for the TIERS in your deployment, you can define the INSTID value before each TIER definition
+INSTID=${installUser}
+
+## REQUIRED: NUMBER OF TIERS IN THIS CONFIGURATION FILE
+MAXTIERS=${totalMachines}
+
+# REQUIRED/CONFIGURABLE: SSH OPTIONS
+SSHOPTIONS="-q -o StrictHostKeyChecking=no -o PasswordAuthentication=no"
+
+## REQUIRED/CONFIGURABLE NUMBER OF RETRIES
+MAXRETRY=10
+
+## REQUIRED/CONFIGURABLE: SLEEP INTERVAL IN SECONDS PER RETRY
+SLEEP=6
+ 
+## REQUIRED/CONFIGURABLE: STATUS REPORT ROOT DIRECTORY 
+STATUSROOT=/tmp
+
+## REQUIRED/CONFIGURABLE: offset in hours that is used to trim centralized log files 
+TRIMOFFSET=1
+
+## OPTIONAL: browser executable for log analysis interweb queries (e.g. firefox)
+## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
+#SAS_LSM_BROWSER=
+
+## OPTIONAL: log analysis sites to visit in addition to support.sas.com and communities.sas.com 
+## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
+#SAS_LSM_SITES="SITE1 SITE2 SITEN"
+
+## OPTIONAL: SAS ADMINISTRATOR EMAIL ADDRESS(ES) 
+## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
+#SASADMIN="ADDRESS1 ADDRESS2 ADDRESSN"  
+
+## END MISCELLANEOUS VARIABLES
+
+##########################################################################################################################################
+
+EOF
+}
+
+function buildMetadataValidation ()
+{
+
+cat << EOF >> ${outputFile}
+TIERNAME[${tierNum}]='Metadata cluster validation (MDCV)'
+TIERINST[${tierNum}]=\${TIERINST[1]}
+TIERHOST[${tierNum}]=\${TIERHOST[1]}
+TIERSTAR[${tierNum}]="\${TIERSTAR[1]}"
+TIERSTOP[${tierNum}]="\${TIERSTOP[1]}"
+TIERREST[${tierNum}]="\${TIERREST[1]}"
+TIERSTAT[${tierNum}]="\${TIERSTAT[1]}"
+TIERSTAS[${tierNum}]="\${TIERSTAS[1]}"
+TIERSTOS[${tierNum}]="\${TIERSTOS[1]}"
+TIERLOGD[${tierNum}]=\${TIERLOGD[1]}
+TIERTYPE[${tierNum}]='MDCV'
+EOF
+}
+
+function buildMetadataTiers ()
+{
+
+cat << EOF >> ${outputFile}
+TIERNAME[${tierNum}]='${tierName}'
+TIERINST[${tierNum}]=\${INSTID}
+TIERHOST[${tierNum}]=${host}
+TIERSTAR[${tierNum}]="\"nohup \${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh start >/dev/null 2>&1 &\""
+TIERSTOP[${tierNum}]="\${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh stopCluster"
+TIERREST[${tierNum}]="\"nohup \${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh restart >/dev/null 2>&1 &\""
+TIERSTAT[${tierNum}]="\${CONFIGDIR}/SASMeta/MetadataServer/MetadataServer.sh status 2>&1"
+TIERSTAS[${tierNum}]='Server appears to be stopped'
+TIERSTOS[${tierNum}]='is RUNNING on'
+TIERLOGD[${tierNum}]=\${CONFIGDIR}
+TIERTYPE[${tierNum}]='MDCN'
+
+EOF
+
+}
+
+function buildStandardTiers ()
+{
+   cat << EOF >> ${outputFile}
+
+TIERNAME[${tierNum}]='${tierName}'
+TIERINST[${tierNum}]=\${INSTID}
+TIERHOST[${tierNum}]=${host}
+TIERSTAR[${tierNum}]="\${CONFIGDIR}/sas.servers start"
+TIERSTOP[${tierNum}]="\${CONFIGDIR}/sas.servers stop"
+TIERREST[${tierNum}]="\${CONFIGDIR}/sas.servers restart"
+TIERSTAT[${tierNum}]="\${CONFIGDIR}/sas.servers status"
+TIERSTAS[${tierNum}]='is NOT up'
+TIERSTOS[${tierNum}]='is UP'
+TIERLOGD[${tierNum}]=\${CONFIGDIR}
+TIERTYPE[${tierNum}]='standard'
+EOF
+}   
+   
+function fillerText ()
+{
+pointer=$1
+
+case ${pointer} in
+
+beforeStandard)
+cat << EOF >> ${outputFile}
+
+##########################################################################################################################################
+## BEGIN OPTIONAL sas.servers services Tier Descriptor Template
+## REMOVE # in COLUMN 1 OF TIER VARIABLES AND REPLACE ARRAY ELEMENT VALUE "N" WITH SEQUENTIAL NUMERIC VALUE TO ACTIVATE
+EOF
+;;
+
+afterStandard)
+cat << EOF >> ${outputFile}
+
+## END OPTIONAL sas.servers services Tier Descriptor Template
+##########################################################################################################################################
+EOF
+;;
+
+beforeMetaCluster)
+cat << EOF >> ${outputFile}
+
+##########################################################################################################################################
+## BEGIN OPTIONAL Metadata horizontal clustering services Tier Descriptor Template 
+## NEED AT LEAST 3 OF TIERTYPE MDCN AND 1 OF TIERTYPE MDCV 
+## REMOVE # in COLUMN 1 OF TIER VARIABLES TO ACTIVATE
+
+EOF
+;;
+
+afterMetaCluster)
+cat << EOF >> ${outputFile}
+
+## END OPTIONAL Metadata horizontal clustering services Tier Descriptor Template
+##########################################################################################################################################
+EOF
+;;
+
+*)
+    echo "Something happened, but it should have never happened"
+	;;
+esac
+}
+
+declare -a COMPLETELIST
+declare -a METALIST
+declare -a COMPUTELIST
+declare -a MIDTIERLIST
+declare -a REMAININGLIST
+gatherInfoMisc
+echo ""
+buildConfigFile
+echo ""
