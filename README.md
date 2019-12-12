@@ -23,6 +23,13 @@ sas_lsm in Sirius as a Product/Topic
 
 version command
 
+     - This might not be the best way, but it works: `curl -v --silent http://support.sas.com/kb/58/231.html 2>&1 | grep "The current release" | sed 's/[^0-9.]*//g' | sed 's/\.$//'`
+       - Returns "3.0" currently.
+       - Basically looks for the line where we say "The current release is..." and does the following with it:
+         - Echoes to stdout,
+         - Pass to sed to keep only numerics and decimal-points,
+         - Pass to sed again to strip the period at the end of the output (we don't care about that one, it's not part of the version number)
+
 tracking Working time + Deadlines
 
 changeDetector
