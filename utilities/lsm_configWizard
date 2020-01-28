@@ -240,14 +240,6 @@ STATUSROOT=/tmp
 ## REQUIRED/CONFIGURABLE: offset in hours that is used to trim centralized log files 
 TRIMOFFSET=1
 
-## OPTIONAL: browser executable for log analysis interweb queries (e.g. firefox)
-## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
-#SAS_LSM_BROWSER=
-
-## OPTIONAL: log analysis sites to visit in addition to support.sas.com and communities.sas.com 
-## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
-#SAS_LSM_SITES="SITE1 SITE2 SITEN"
-
 ## OPTIONAL: SAS ADMINISTRATOR EMAIL ADDRESS(ES) 
 ## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
 #SASADMIN="ADDRESS1 ADDRESS2 ADDRESSN"  
