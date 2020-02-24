@@ -42,6 +42,8 @@ function validate_tiers
 			  do
 				echo "          ${ITEM}"  | tee -a ${REPORT}
 			  done
+                  elif [ "${ACTION}" = "status" ]
+                         then echo "  <<VALIDATION>> Skipping SSH validation on status operation"
 		  else	testssh 
 			if [ $? -ne 0 ]
 		  	  then	echo "  <<ERROR>> ssh connection to TIER[${INCR}] failed: [${CMD}]"
