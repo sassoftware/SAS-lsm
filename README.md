@@ -40,11 +40,11 @@ The usage function inside SAS_lsm describes how to use the utility. A basic vers
 
 ### Examples
 
-Start services from, above, and including tier 1: `bash SAS_lsm -a 1 -c /path/to/config-file.cfg`
+*Start services from, above, and including tier 1:* `bash SAS_lsm -a 1 -c /path/to/config-file.cfg`
 
-Stop services on and including tier 4. Perform log analysis if errors are encountered: `bash SAS_lsm -o 4 -c /path/to/config-file.cfg -e`
+*Stop services down to (and including) tier 4. Perform log analysis if errors are encountered:* `bash SAS_lsm -o 4 -c /path/to/config-file.cfg -e`
 
-Check tier status for all tiers in configuration file: `bash SAS_lsm -s -c /path/to/config-file.cfg`
+*Check tier status for all tiers in configuration file:* `bash SAS_lsm -s -c /path/to/config-file.cfg`
 
 ## Contributing
 
