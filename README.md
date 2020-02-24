@@ -29,11 +29,11 @@ The usage function inside SAS_lsm describes how to use the utility. A basic vers
 
 `[bash | sh] ${PROG} [-a <NUM> | -o <NUM> | -s] -c <CFG> [-e]`
 
-* -a NUM     start deployment tier services from tier NUM to MAXTIERS
-* -o NUM     stop deployment tier services from MAXTIERS to tier NUM
-* -s         provide status of all deployment tier services
-* -c CFG     specify configuration file
-* -e         [OPTIONAL] extract potential tier error logs to a centralized location under !STATUSROOT/!CFG/
+* **-a NUM**     start deployment tier services from tier NUM to MAXTIERS
+* **-o NUM**     stop deployment tier services from MAXTIERS to tier NUM
+* **-s**         provide status of all deployment tier services
+* -**c CFG**     specify configuration file
+* **-e**         [OPTIONAL] extract potential tier error logs to a centralized location under !STATUSROOT/!CFG/
 
 *NOTE: Only one action option (-a, -o, and -s) can be run in a single command.*
 
