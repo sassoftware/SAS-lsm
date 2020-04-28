@@ -32,9 +32,9 @@ function userExit_management
                    if [ ${DRC} = 1 ]
                      then
                           if [ -z ${UESTAT} ]  #End script if required pre script fails
-                           then echo "<<ERROR>> ${SCRIPTLIST[i]} has failed, exiting SAS_lsm"
+                           then echo "    <<ERROR>> ${SCRIPTLIST[i]} has failed, exiting SAS_lsm"
                                 exit 1
-                          else echo "Not in pre Mode"
+                          else echo "    <<ERROR>> ${SCRIPTLIST[i]} has failed but was marked as required"
                                break #End loop if required post script fails
                           fi
                    fi

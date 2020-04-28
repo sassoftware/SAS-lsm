@@ -26,6 +26,7 @@ function start_services
 				get_array ${TIER}
 			fi
 		fi
+                wait_between_tiers
 		if [ "${CHECK}" -eq 0 ]
 		  then	if [ ! -z ${TIEX} ]
                           then userExit_management post success

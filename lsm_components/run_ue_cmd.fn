@@ -12,10 +12,10 @@ function run_ue_cmd
                DRC=0
           else
            case ${UEFLAG} in
-             0|1|2|4)      DRC=0
+             0|1|2|4)      DRC=0 #successful run of script should return 0, we expect user script works from shell so a failure to run script is not handled by lsm, hence 1,2,4 accepted as ok
                               ;;
-             *)            DRC=1
-                       echo "${DRC}"
+             *)            DRC=1 #the ue script failed and returned something other than 0,1,2,4
+                       #echo "${DRC}" #uncomment for debug
                               ;;
            esac
         fi
