@@ -38,7 +38,7 @@ function check_services
                   	  	  done <${TMPFILE3}
 				rm -f ${TMPFILE3} >/dev/null 2>&1
 				if [ ! -z "${CONF}" ]  && [ "${CALLEDFROM}" != "check_dependencies" ] 
-			  	  then  create_BOM "${BADTOKEN}"  
+			  	  then create_BOM "${BADTOKEN}"  
 				fi
 	  		  else	UNKNOWN=true
 			fi

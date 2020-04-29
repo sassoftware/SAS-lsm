@@ -1,10 +1,9 @@
 #
-# Copyright 2018 SAS Institute Inc.
-# SAS Campus Drive, Cary, North Carolina 27513, USA.
-# All rights reserved.
+# Copyright © 2020, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-#
-# Version 3.0
+# SAS_lsm Utility: Version 3.0
+# EDIT ABOVE LINE TO 4.0.0 ONCE APPROVED FOR GITHUB - LEAVE UNTIL THEN AS VERCHECK DEPENDS ON IT
 #
 # This script automates the management of UNIX/Linux based multi-tiered services.
 # Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
@@ -19,4 +18,11 @@
 # 2018-01-12  Clifford J. Meyers	v3.0 add metadata clustering, mpp LASR services, user-defined services, log analysis
 # 2019-01-04  Clifford J. Meyers        v3.0 remove ssh requirement when SAS_lsm is located on the same physical server as a deployment tier
 # 2018-04-20  Greg W. Arledge           v3.0 add Solaris compatibility
+# 2020-04-49  Greg W. Arledge           v4.0 add userExit framework functionality
+# 2020-04-29  Greg W. Arledge           v4.0 add long-running process support
+# 2020-04-29  Greg W. Arledge           v4.0 add override for status checks if a host is unreachable
+# 2020-04-29  Andy J. Foreman           v4.0 add version check and notifiction functionality
+# 2020-04-29  Andy J. Foreman           v4.0 add config-file generation wizard
+# 2020-04-29  Andy J. Foreman           v4.0 add make utility to build SAS_lsm from functions
+# 2020-04-29  Andy J. Foreman           v4.0 add userExit framework debugging utilities
 #

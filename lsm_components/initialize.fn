@@ -64,6 +64,7 @@ function initialize
 				TMPFILE2=/tmp/tmpfile2.${RANDOM}
 				TMPFILE3=/tmp/tmpfile3.${RANDOM}
 		  	  	echo "COMMAND: ${COMMAND}" >${REPORT}
+				check_version
 		  		validate_cfgfile
 			fi
 		fi

@@ -10,6 +10,9 @@ function testssh
         fi
         TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
         if [ "${SKIP}" = "false" -a "${TARGETHOST}" != "${THISHOST}" ]
-          then  eval ${CMD} >${OUTFILE} 2>&1
+          then  if [ "$1" = "quick" ] 
+                  then eval ${CMD} 2>&1
+                  else eval ${CMD} >${OUTFILE} 2>&1
+                fi
         fi
 }

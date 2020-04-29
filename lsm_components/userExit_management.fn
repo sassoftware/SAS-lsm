@@ -1,5 +1,8 @@
 function userExit_management
-{
+{ 
+  if [ "${SKIPUE}" = "true" ]
+     then printf "  <<WARNING>> <<USEREXITS>> UserExit Script Execution Bypassed by no-userexit option (-x).  No UserExits will be executed or validated during this run.\n\n"
+     else
         UETYPE=$1  #pre or post
 	UESTAT=$2  #success or failure
         declare -a SCRIPTLIST
@@ -41,5 +44,6 @@ function userExit_management
 	         done
                echo ""
         fi
-	unset SCRIPTLIST    
+	unset SCRIPTLIST
+  fi 
 }

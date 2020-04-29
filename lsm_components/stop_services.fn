@@ -43,12 +43,14 @@ function stop_services
 		esac
 		if [ "${CHECK}" -eq 0 ]
 		  then	if [ ! -z ${TIEX} ]
-                          then userExit_management post success
+                          then echo ""
+                               userExit_management post success
                           else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
                         fi
                         print_message "${TIER}" "${ACTION}" "end success"
 		  else	if [ ! -z ${TIEX} ]
-                          then userExit_management post failure
+                          then echo ""
+                               userExit_management post failure
                           else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
                         fi
                         print_message "${TIER}" "${ACTION}" "end failed - 005"

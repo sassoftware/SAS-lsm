@@ -42,12 +42,20 @@ function validate_tiers
 			  do
 				echo "          ${ITEM}"  | tee -a ${REPORT}
 			  done
-                  elif [ "${ACTION}" = "status" ]
-                         then echo "  <<VALIDATION>> Skipping SSH validation on status operation"
+                  #elif [ "${ACTION}" = "status" ]
+                         #then echo "  <<VALIDATION>> Skipping SSH validation on status operation"
 		  else	testssh 
 			if [ $? -ne 0 ]
 		  	  then	echo "  <<ERROR>> ssh connection to TIER[${INCR}] failed: [${CMD}]"
-				CRC=1
+				if [ "${ACTION}" = "status" ]
+                                   then
+                                     #SSHFAILTIERS+=" ${INCR}" #add to global array SSHFAILTIERS any tier number where we detected a failure on a status check, failure would be due to machine not responding to SSH
+                                     # echo "${SSHFAILTIERS[0]}" #debug only
+                                     #  SSHFAILURE=true
+                                     break
+                                else
+                                     CRC=1 #do not use an array here because non-status checks should stop processing immediately after the first tier with errors
+                                fi
 			fi
 		fi
 		((INCR=INCR+1))

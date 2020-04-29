@@ -56,7 +56,11 @@ function cleanup
 	echo "" | tee -a ${REPORT}
 	echo "" | tee -a ${REPORT}
 	if [ ! -z "${POBAD}" ]
-	  then	 MSG="${MSG} [failure on tier ${POBAD}]"
+	  then if [ "${ACTION}" = "status" ]
+                   then MSG="${MSG} [failure on tier(s)${STATUSFAILTIERS[*]}]"
+               else
+                   MSG="${MSG} [failure on tier ${POBAD}]"
+               fi
 	fi
 	echo "${MSG}" >> ${REPORT}
 	if [ ! -z "${SASADMIN}" ] && [ "${MAILADMIN}" = "yes" ]

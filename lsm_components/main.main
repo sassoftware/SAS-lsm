@@ -11,32 +11,70 @@ if [ "${DIR}" = "${PROG}" ]
   then	DIR=.
 fi
 COMMAND="${PROG} ${*}"
-args=`getopt esc:a:o: $*`
-for i in $args
+#args=`getopt xvesc:a:o: $*`
+#for i in $args
+EXCLUSIVE=0
+while :;  
   do
-        case "$i" in
-          -c)   CFGFILE=$2
-                shift 2
-                ;;
-          -a)   ACTION="${ACTION}start"
-                TIER=$2
-		TIERSTART=${TIER}
-	        shift 2
-                ;;
-          -o)   ACTION="${ACTION}stop"
-                TIER=$2
-		TIERSTOP=${TIER}
-	        shift 2
-                ;;
-          -s)   ACTION="${ACTION}status"
-		TIER=1
-                shift
-		;;
-          -e)   EXTRACTLOGS=true
-                shift
-		;;
+        #echo "Position 1: $1"  #uncomment for debugging
+        #echo "Position 2: $2"  #uncomment for debugging
+        case $1 in
+          -c|--config)        CFGFILE=$2
+                              shift 2
+                              ;;
+          -a|--start)         ACTION="${ACTION}start"
+                              TIER=$2
+		              TIERSTART=${TIER}
+                              EXCLUSIVE=$(($EXCLUSIVE+1))                            
+	                      shift 2
+                              ;;
+          -o|--stop)          ACTION="${ACTION}stop"
+                              TIER=$2
+		              TIERSTOP=${TIER}
+                              EXCLUSIVE=$(($EXCLUSIVE+1))
+	                      shift 2
+                              ;;
+          -s|--status)        ACTION="${ACTION}status"
+                              declare -a STATUSFAILTIERS #init array to handle multiple tiers with reported failures, only allowed on a status check
+		              TIER=1
+                              EXCLUSIVE=$(($EXCLUSIVE+1))
+                              shift
+		              ;;
+          -e|--log-collect)   EXTRACTLOGS=true
+                              shift
+		              ;;
+          -v|--version)       ACTION="${ACTION}version"
+                              EXCLUSIVE=$(($EXCLUSIVE+1))
+                              shift
+                              ;;
+          -x|--no-userexits)  SKIPUE=true
+                              shift
+                              ;;
+          -?*)                echo ""
+                              echo "<<ERROR>> Unknown option specified: $1"
+                              usage
+                              ;;
+          *)                  # Default case: No more options, so break out of the loop.
+                              break          
         esac
   done
+if [ $EXCLUSIVE -gt 1 ]
+   then echo ""
+        echo "<<ERROR>> START, STOP, STATUS and VERSION (-a, -o, -s, -v)  are exclusive options.  They cannot be run simultaneously."
+        usage
+fi
+if [ $EXCLUSIVE -lt 1 ]
+   then echo ""
+        echo "<<ERROR>> Required option missing. A valid command will contain the START, STOP, STATUS, or VERSION (-a, -o, -s, -v) option.  These options are exclusive."
+        usage
+fi
+if [ ${ACTION} = "version" ]
+   then REPORT="/dev/null" #version check does not produce reports
+        echo "Version check option has been called. Other input will be ignored."
+        check_version
+        echo ""
+        exit 0
+fi
 initialize
 rm -rf ${LOGFILESBOM} ${LOGFILESANALYSIS} ${LOGFILES} ${STATUSDIR}/tarfile.*.* >/dev/null 2>&1 
 case "${ACTION}" in

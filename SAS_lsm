@@ -1,10 +1,9 @@
 #
-# Copyright 2018 SAS Institute Inc.
-# SAS Campus Drive, Cary, North Carolina 27513, USA.
-# All rights reserved.
+# Copyright © 2020, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-#
-# Version 3.0
+# SAS_lsm Utility: Version 3.0
+# EDIT ABOVE LINE TO 4.0.0 ONCE APPROVED FOR GITHUB - LEAVE UNTIL THEN AS VERCHECK DEPENDS ON IT
 #
 # This script automates the management of UNIX/Linux based multi-tiered services.
 # Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
@@ -19,53 +18,65 @@
 # 2018-01-12  Clifford J. Meyers	v3.0 add metadata clustering, mpp LASR services, user-defined services, log analysis
 # 2019-01-04  Clifford J. Meyers        v3.0 remove ssh requirement when SAS_lsm is located on the same physical server as a deployment tier
 # 2018-04-20  Greg W. Arledge           v3.0 add Solaris compatibility
+# 2020-04-49  Greg W. Arledge           v4.0 add userExit framework functionality
+# 2020-04-29  Greg W. Arledge           v4.0 add long-running process support
+# 2020-04-29  Greg W. Arledge           v4.0 add override for status checks if a host is unreachable
+# 2020-04-29  Andy J. Foreman           v4.0 add version check and notifiction functionality
+# 2020-04-29  Andy J. Foreman           v4.0 add config-file generation wizard
+# 2020-04-29  Andy J. Foreman           v4.0 add make utility to build SAS_lsm from functions
+# 2020-04-29  Andy J. Foreman           v4.0 add userExit framework debugging utilities
 #
 function create_BOM
 {
-	if [ -z "${POBAD}" -o "$2" = "cluster" ]
-	  then	POBAD=${GAINCR}
-		CT=${1}
-		if [ ! -f ${LOGFILESBOM} ]
-	  	  then	bttf
-	  		echo "${HA}" > ${LOGFILESBOM}
-			echo "" >>${LOGFILESBOM}
-		fi
-		echo "${CONF}" > ${TMPFILE1}
-		SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${CONF} -type f -name \"\*.srv\" 2>/dev/null"
-		SCMD=`stripsshiflocal ${SCMD}`
-		for RECORD in `eval ${SCMD} | egrep "^/"`
- 	  	  do
-			TCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} cat ${RECORD}"
-			TCMD=`stripsshiflocal ${TCMD}`
-			eval ${TCMD}  | egrep -v "^#" | tail -2 | head -1 >> ${TMPFILE1}
- 	  	  done
-		rm -f ${TMPFILE2} >/dev/null 2>&1
-		if [ -s ${TMPFILE1} ]
-		  then	for RECORD in `cat ${TMPFILE1} | awk '{ print length, $0 }' | sort -nu | awk '{ print $2 }' | egrep -v ${CONF}/`
-  	  	  	  do
-				SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${RECORD} -mmin -60 -type f -name \"\*.log\" 2>/dev/null"
-				SCMD=`stripsshiflocal ${SCMD}`
-				for RECORD2 in `eval ${SCMD} | egrep -v 'kahadb|tmlog' |  egrep "^/"`
-				  do
+        STATUSFAILTIERS+=" ${TIER}"
+        testssh quick  
+        if [ $? -eq 0 ]
+          then 
+               if [ -z "${POBAD}" -o "$2" = "cluster" ]
+	          then POBAD=${GAINCR} #set POBAD to current tier number when we detect a failure
+		       CT=${1}
+		       if [ ! -f ${LOGFILESBOM} ]
+	  	          then	bttf
+	  		        echo "${HA}" > ${LOGFILESBOM}
+			        echo "" >>${LOGFILESBOM}
+		       fi
+		       echo "${CONF}" > ${TMPFILE1}
+		       SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${CONF} -type f -name \"\*.srv\" 2>/dev/null"
+		       SCMD=`stripsshiflocal ${SCMD}`
+		       for RECORD in `eval ${SCMD} | egrep "^/"`
+ 	  	         do
+			    TCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} cat ${RECORD}"
+			    TCMD=`stripsshiflocal ${TCMD}`
+			    eval ${TCMD}  | egrep -v "^#" | tail -2 | head -1 >> ${TMPFILE1}
+ 	  	         done
+		       rm -f ${TMPFILE2} >/dev/null 2>&1
+		       if [ -s ${TMPFILE1} ]
+		          then	for RECORD in `cat ${TMPFILE1} | awk '{ print length, $0 }' | sort -nu | awk '{ print $2 }' | egrep -v ${CONF}/`
+  	  	  	        do
+				  SCMD="ssh ${SSHOPTIONS} ${INST}@${HOST} find ${RECORD} -mmin -60 -type f -name \"\*.log\" 2>/dev/null"
+				  SCMD=`stripsshiflocal ${SCMD}`
+				  for RECORD2 in `eval ${SCMD} | egrep -v 'kahadb|tmlog' |  egrep "^/"`
+				    do
 					echo ${RECORD2} >> ${TMPFILE2}
-				  done
-  	  	  	done
-		fi
-		if [ -s ${TMPFILE2} ]
-  	  	  then	echo "Server [${HOST}] [${NAME}] issues" >> ${LOGFILESBOM}
-			echo "" >> ${LOGFILESBOM}
-			echo "<<TIER SERVICES>>" 	 >> ${LOGFILESBOM}
-			CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}" 
-			CMD=`stripsshiflocal ${CMD}`
-			eval ${CMD} | egrep "${CT}" >> ${LOGFILESBOM}
-			echo "" >> ${LOGFILESBOM}
-			echo "<<  LOG FILES  >>" >> ${LOGFILESBOM}
-			cat ${TMPFILE2} |
-			while read RECORD
-		  	  do
-				echo "${INST}:${HOST}:${TIER}:${RECORD}" >> ${LOGFILESBOM}
-		  	  done 
-			echo "" >> ${LOGFILESBOM}
+				    done
+  	  	  	        done
+		       fi
+		       if [ -s ${TMPFILE2} ]
+  	  	         then	echo "Server [${HOST}] [${NAME}] issues" >> ${LOGFILESBOM}
+			        echo "" >> ${LOGFILESBOM}
+			        echo "<<TIER SERVICES>>" 	 >> ${LOGFILESBOM}
+			        CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}" 
+			        CMD=`stripsshiflocal ${CMD}`
+			        eval ${CMD} | egrep "${CT}" >> ${LOGFILESBOM}
+			        echo "" >> ${LOGFILESBOM}
+			        echo "<<  LOG FILES  >>" >> ${LOGFILESBOM}
+			        cat ${TMPFILE2} |
+			        while read RECORD
+		  	          do
+				     echo "${INST}:${HOST}:${TIER}:${RECORD}" >> ${LOGFILESBOM}
+		  	          done 
+			        echo "" >> ${LOGFILESBOM}
+                       fi
 		fi
 	fi
 }
@@ -113,12 +124,20 @@ function validate_tiers
 			  do
 				echo "          ${ITEM}"  | tee -a ${REPORT}
 			  done
-                  elif [ "${ACTION}" = "status" ]
-                         then echo "  <<VALIDATION>> Skipping SSH validation on status operation"
+                  #elif [ "${ACTION}" = "status" ]
+                         #then echo "  <<VALIDATION>> Skipping SSH validation on status operation"
 		  else	testssh 
 			if [ $? -ne 0 ]
 		  	  then	echo "  <<ERROR>> ssh connection to TIER[${INCR}] failed: [${CMD}]"
-				CRC=1
+				if [ "${ACTION}" = "status" ]
+                                   then
+                                     #SSHFAILTIERS+=" ${INCR}" #add to global array SSHFAILTIERS any tier number where we detected a failure on a status check, failure would be due to machine not responding to SSH
+                                     # echo "${SSHFAILTIERS[0]}" #debug only
+                                     #  SSHFAILURE=true
+                                     break
+                                else
+                                     CRC=1 #do not use an array here because non-status checks should stop processing immediately after the first tier with errors
+                                fi
 			fi
 		fi
 		((INCR=INCR+1))
@@ -162,6 +181,46 @@ function bttf
 	HOUR=`printf %.2d ${HOUR}`
 	HA="${YEAR}-${MONTH}-${DAY} ${HOUR}"
 }
+function check_version 
+{
+# if possible, reference SAS note to determine newest version available
+# notify user if the version being executed is out of date
+
+#call website to detemine newest version
+UPDATEURL="http://support.sas.com/kb/58/231.html"
+WEBVERSION=$(curl -v --silent ${UPDATEURL} 2>&1 | grep "The current release" | sed 's/[^0-9.]*//g' | sed 's/\.$//')
+
+#read the top of the SAS_lsm script to determine the current version
+#presently we read the first 30 lines of the script, already excessive but safe for future additions, change the head command if we need to read more
+CURRVERSION=$(head -q -n 30 "${DIR}/${PROG}" | grep "SAS_lsm Utility: Version" | sed 's/[^0-9.]*//g' | sed 's/\.$//')
+
+#remove decimals from version number to meet bash integer-only arithmetic limitations
+#version 2.0.0 would become "200", 2.5.3 would become "253", etc.
+WEBSTRIP=`echo ${WEBVERSION} | sed 's/[^0-9]*//g'`
+CURRSTRIP=`echo ${CURRVERSION} | sed 's/[^0-9]*//g'`
+
+echo | tee -a ${REPORT}
+echo '<< INFO >> Checking SAS_lsm version...' | tee -a ${REPORT}
+
+if [ -z ${WEBVERSION} ]; then
+		#web check is empty, likely because the URL could not be reached, such as if no network connection
+		echo " << WARNING >> SAS_lsm was unable to check for version updates. You are currently using version ${CURRVERSION}." | tee -a ${REPORT}
+		echo "Please reference ${UPDATEURL} to ensure you are using the newest version of SAS_lsm." | tee -a ${REPORT}
+	else	
+		if [ ${WEBSTRIP} -gt ${CURRSTRIP} ]; then
+			#web version is newer than current
+			echo "<< WARNING >> SAS_lsm is out of date. You are currently using version ${CURRVERSION}. The newest version is ${WEBVERSION}." | tee -a ${REPORT}
+			echo "Please visit ${UPDATEURL} to download the newest version of SAS_lsm." | tee -a ${REPORT}
+		elif [ ${WEBSTRIP} -eq ${CURRSTRIP} ]; then 
+			#web version is equal to current
+			echo "<< INFO >> Current SAS_lsm version ${CURRVERSION} was successfully verified as up-to-date." | tee -a ${REPORT}
+		else
+			#something unexpected
+			echo "<< WARNING >> A problem occurred during the SAS_lsm update check. You are currently using version ${CURRVERSION}." | tee -a ${REPORT}
+			echo "Please reference ${UPDATEURL} to ensure you are using the newest version of SAS_lsm." | tee -a ${REPORT}
+		fi
+	fi
+}
 function check_services 
 {
 	CALLEDFROM=${1}
@@ -202,7 +261,7 @@ function check_services
                   	  	  done <${TMPFILE3}
 				rm -f ${TMPFILE3} >/dev/null 2>&1
 				if [ ! -z "${CONF}" ]  && [ "${CALLEDFROM}" != "check_dependencies" ] 
-			  	  then  create_BOM "${BADTOKEN}"  
+			  	  then create_BOM "${BADTOKEN}"  
 				fi
 	  		  else	UNKNOWN=true
 			fi
@@ -269,7 +328,11 @@ function cleanup
 	echo "" | tee -a ${REPORT}
 	echo "" | tee -a ${REPORT}
 	if [ ! -z "${POBAD}" ]
-	  then	 MSG="${MSG} [failure on tier ${POBAD}]"
+	  then if [ "${ACTION}" = "status" ]
+                   then MSG="${MSG} [failure on tier(s)${STATUSFAILTIERS[*]}]"
+               else
+                   MSG="${MSG} [failure on tier ${POBAD}]"
+               fi
 	fi
 	echo "${MSG}" >> ${REPORT}
 	if [ ! -z "${SASADMIN}" ] && [ "${MAILADMIN}" = "yes" ]
@@ -312,12 +375,14 @@ function start_services
                 wait_between_tiers
 		if [ "${CHECK}" -eq 0 ]
 		  then	if [ ! -z ${TIEX} ]
-                          then userExit_management post success
+                          then echo ""
+                               userExit_management post success
                           else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
                         fi
                         print_message "${TIER}" "${ACTION}" "end success"
 		  else	if [ ! -z ${TIEX} ]
-                          then userExit_management post failure
+                          then echo ""
+                               userExit_management post failure
                           else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
                         fi
                         print_message "${TIER}" "${ACTION}" "end failed - 003"
@@ -372,12 +437,14 @@ function stop_services
 		esac
 		if [ "${CHECK}" -eq 0 ]
 		  then	if [ ! -z ${TIEX} ]
-                          then userExit_management post success
+                          then echo ""
+                               userExit_management post success
                           else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
                         fi
                         print_message "${TIER}" "${ACTION}" "end success"
 		  else	if [ ! -z ${TIEX} ]
-                          then userExit_management post failure
+                          then echo ""
+                               userExit_management post failure
                           else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
                         fi
                         print_message "${TIER}" "${ACTION}" "end failed - 005"
@@ -559,6 +626,7 @@ function initialize
 				TMPFILE2=/tmp/tmpfile2.${RANDOM}
 				TMPFILE3=/tmp/tmpfile3.${RANDOM}
 		  	  	echo "COMMAND: ${COMMAND}" >${REPORT}
+				check_version
 		  		validate_cfgfile
 			fi
 		fi
@@ -619,7 +687,10 @@ function testssh
         fi
         TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
         if [ "${SKIP}" = "false" -a "${TARGETHOST}" != "${THISHOST}" ]
-          then  eval ${CMD} >${OUTFILE} 2>&1
+          then  if [ "$1" = "quick" ] 
+                  then eval ${CMD} 2>&1
+                  else eval ${CMD} >${OUTFILE} 2>&1
+                fi
         fi
 }
 function operating_system_customize
@@ -1003,14 +1074,16 @@ function usage
 	echo "<<USAGE>> [bash | sh] ${PROG} [-a <NUM> | -o <NUM> | -s] -c <CFG> [-e]"
 	echo ""
 	echo "  WHERE"
-	echo "    -a NUM     start deployment tier services from tier NUM to MAXTIERS"
-	echo "    -o NUM     stop deployment tier services from MAXTIERS to tier NUM"
-	echo "    -s         provide status of all deployment tier services"
-	echo "    -c CFG     specify configuration file"
-	echo "    -e         optionally extract potential tier error logs to a centralized location under !STATUSROOT/!CFG/"
-	echo ""
+	echo "    -a NUM or --start NUM    start deployment tier services from tier NUM to MAXTIERS"
+	echo "    -o NUM or --stop NUM     stop deployment tier services from MAXTIERS to tier NUM"
+	echo "    -s or --status           provide status of all deployment tier services"
+	echo "    -c CFG or --config CFG   specify configuration file"
+	echo "    -e or --log-collect      optionally extract potential tier error logs to a centralized location under !STATUSROOT/!CFG/"
+	echo "    -v or --version          display current version and check for updates to the SAS_lsm Utility"
+        echo "    -x or --no-userexits     bypass userexit framework (no userexit scripts will run)"
+        echo ""
 	echo "  NOTE"
-	echo "    -a, -o, and -s options are not to be run concurrently" 
+	echo "    -a, -o, -s, AND -v options are not to be run concurrently" 
 	echo ""
 	exit 1
 }
@@ -1136,7 +1209,10 @@ function lhf
 	fi
 }
 function userExit_management
-{
+{ 
+  if [ "${SKIPUE}" = "true" ]
+     then printf "  <<WARNING>> <<USEREXITS>> UserExit Script Execution Bypassed by no-userexit option (-x).  No UserExits will be executed or validated during this run.\n\n"
+     else
         UETYPE=$1  #pre or post
 	UESTAT=$2  #success or failure
         declare -a SCRIPTLIST
@@ -1178,7 +1254,8 @@ function userExit_management
 	         done
                echo ""
         fi
-	unset SCRIPTLIST    
+	unset SCRIPTLIST
+  fi 
 }
 
 # main
@@ -1193,32 +1270,70 @@ if [ "${DIR}" = "${PROG}" ]
   then	DIR=.
 fi
 COMMAND="${PROG} ${*}"
-args=`getopt esc:a:o: $*`
-for i in $args
+#args=`getopt xvesc:a:o: $*`
+#for i in $args
+EXCLUSIVE=0
+while :;  
   do
-        case "$i" in
-          -c)   CFGFILE=$2
-                shift 2
-                ;;
-          -a)   ACTION="${ACTION}start"
-                TIER=$2
-		TIERSTART=${TIER}
-	        shift 2
-                ;;
-          -o)   ACTION="${ACTION}stop"
-                TIER=$2
-		TIERSTOP=${TIER}
-	        shift 2
-                ;;
-          -s)   ACTION="${ACTION}status"
-		TIER=1
-                shift
-		;;
-          -e)   EXTRACTLOGS=true
-                shift
-		;;
+        #echo "Position 1: $1"  #uncomment for debugging
+        #echo "Position 2: $2"  #uncomment for debugging
+        case $1 in
+          -c|--config)        CFGFILE=$2
+                              shift 2
+                              ;;
+          -a|--start)         ACTION="${ACTION}start"
+                              TIER=$2
+		              TIERSTART=${TIER}
+                              EXCLUSIVE=$(($EXCLUSIVE+1))                            
+	                      shift 2
+                              ;;
+          -o|--stop)          ACTION="${ACTION}stop"
+                              TIER=$2
+		              TIERSTOP=${TIER}
+                              EXCLUSIVE=$(($EXCLUSIVE+1))
+	                      shift 2
+                              ;;
+          -s|--status)        ACTION="${ACTION}status"
+                              declare -a STATUSFAILTIERS #init array to handle multiple tiers with reported failures, only allowed on a status check
+		              TIER=1
+                              EXCLUSIVE=$(($EXCLUSIVE+1))
+                              shift
+		              ;;
+          -e|--log-collect)   EXTRACTLOGS=true
+                              shift
+		              ;;
+          -v|--version)       ACTION="${ACTION}version"
+                              EXCLUSIVE=$(($EXCLUSIVE+1))
+                              shift
+                              ;;
+          -x|--no-userexits)  SKIPUE=true
+                              shift
+                              ;;
+          -?*)                echo ""
+                              echo "<<ERROR>> Unknown option specified: $1"
+                              usage
+                              ;;
+          *)                  # Default case: No more options, so break out of the loop.
+                              break          
         esac
   done
+if [ $EXCLUSIVE -gt 1 ]
+   then echo ""
+        echo "<<ERROR>> START, STOP, STATUS and VERSION (-a, -o, -s, -v)  are exclusive options.  They cannot be run simultaneously."
+        usage
+fi
+if [ $EXCLUSIVE -lt 1 ]
+   then echo ""
+        echo "<<ERROR>> Required option missing. A valid command will contain the START, STOP, STATUS, or VERSION (-a, -o, -s, -v) option.  These options are exclusive."
+        usage
+fi
+if [ ${ACTION} = "version" ]
+   then REPORT="/dev/null" #version check does not produce reports
+        echo "Version check option has been called. Other input will be ignored."
+        check_version
+        echo ""
+        exit 0
+fi
 initialize
 rm -rf ${LOGFILESBOM} ${LOGFILESANALYSIS} ${LOGFILES} ${STATUSDIR}/tarfile.*.* >/dev/null 2>&1 
 case "${ACTION}" in

@@ -1,0 +1,40 @@
+function check_version 
+{
+# if possible, reference SAS note to determine newest version available
+# notify user if the version being executed is out of date
+
+#call website to detemine newest version
+UPDATEURL="http://support.sas.com/kb/58/231.html"
+WEBVERSION=$(curl -v --silent ${UPDATEURL} 2>&1 | grep "The current release" | sed 's/[^0-9.]*//g' | sed 's/\.$//')
+
+#read the top of the SAS_lsm script to determine the current version
+#presently we read the first 30 lines of the script, already excessive but safe for future additions, change the head command if we need to read more
+CURRVERSION=$(head -q -n 30 "${DIR}/${PROG}" | grep "SAS_lsm Utility: Version" | sed 's/[^0-9.]*//g' | sed 's/\.$//')
+
+#remove decimals from version number to meet bash integer-only arithmetic limitations
+#version 2.0.0 would become "200", 2.5.3 would become "253", etc.
+WEBSTRIP=`echo ${WEBVERSION} | sed 's/[^0-9]*//g'`
+CURRSTRIP=`echo ${CURRVERSION} | sed 's/[^0-9]*//g'`
+
+echo | tee -a ${REPORT}
+echo '<< INFO >> Checking SAS_lsm version...' | tee -a ${REPORT}
+
+if [ -z ${WEBVERSION} ]; then
+		#web check is empty, likely because the URL could not be reached, such as if no network connection
+		echo " << WARNING >> SAS_lsm was unable to check for version updates. You are currently using version ${CURRVERSION}." | tee -a ${REPORT}
+		echo "Please reference ${UPDATEURL} to ensure you are using the newest version of SAS_lsm." | tee -a ${REPORT}
+	else	
+		if [ ${WEBSTRIP} -gt ${CURRSTRIP} ]; then
+			#web version is newer than current
+			echo "<< WARNING >> SAS_lsm is out of date. You are currently using version ${CURRVERSION}. The newest version is ${WEBVERSION}." | tee -a ${REPORT}
+			echo "Please visit ${UPDATEURL} to download the newest version of SAS_lsm." | tee -a ${REPORT}
+		elif [ ${WEBSTRIP} -eq ${CURRSTRIP} ]; then 
+			#web version is equal to current
+			echo "<< INFO >> Current SAS_lsm version ${CURRVERSION} was successfully verified as up-to-date." | tee -a ${REPORT}
+		else
+			#something unexpected
+			echo "<< WARNING >> A problem occurred during the SAS_lsm update check. You are currently using version ${CURRVERSION}." | tee -a ${REPORT}
+			echo "Please reference ${UPDATEURL} to ensure you are using the newest version of SAS_lsm." | tee -a ${REPORT}
+		fi
+	fi
+}
