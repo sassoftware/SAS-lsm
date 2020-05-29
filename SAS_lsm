@@ -2,8 +2,7 @@
 # Copyright © 2020, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# SAS_lsm Utility: Version 3.0
-# EDIT ABOVE LINE TO 4.0.0 ONCE APPROVED FOR GITHUB - LEAVE UNTIL THEN AS VERCHECK DEPENDS ON IT
+# SAS_lsm Utility: Version 4.0.0
 #
 # This script automates the management of UNIX/Linux based multi-tiered services.
 # Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
@@ -187,8 +186,8 @@ function check_version
 # notify user if the version being executed is out of date
 
 #call website to detemine newest version
-UPDATEURL="http://support.sas.com/kb/58/231.html"
-WEBVERSION=$(curl -v --silent ${UPDATEURL} 2>&1 | grep "The current release" | sed 's/[^0-9.]*//g' | sed 's/\.$//')
+UPDATEURL="https://api.github.com/repos/sassoftware/sas-lsm/releases/latest"
+WEBVERSION=$(curl -v --silent ${UPDATEURL} 2>&1 | grep '"tag_name":' | sed 's/[^0-9.]*//g' | sed 's/\.$//')
 
 #read the top of the SAS_lsm script to determine the current version
 #presently we read the first 30 lines of the script, already excessive but safe for future additions, change the head command if we need to read more
@@ -816,11 +815,20 @@ function run_cmd
 }
 function stripsshiflocal
 {
+# NOTE: Putting any sort of new output in this function (i.e. an echo statement to notify the user of something) may cause an infinite loop, be careful
         CMD="${*}"
         TARGETHOST=`echo ${HOST} | awk -F\. '{ print $1 }'`
         if [ "${THISHOST}" = "${TARGETHOST}" ]
-          then  CMD=`echo ${CMD} | sed "s!ssh ${SSHOPTIONS} ${INST}@${HOST}!!" | sed "s!^ !!"  | sed 's%\\\\%%g'`
+          then
+           if [ "${LOCALSSH}" = "override" ]
+            then
+                #Override this function and force ssh command to local machine (useful for masquerading as another user)
+                CMD=`echo ${CMD}`
+           else
+                #Remove the ssh portion of our command as we are running on the same machine that SAS_lsm is executing from. Default behavior.
+                CMD=`echo ${CMD} | sed "s!ssh ${SSHOPTIONS} ${INST}@${HOST}!!" | sed "s!^ !!"  | sed 's%\\\\%%g'`
                 SKIP=true
+          fi
         fi
         echo "${CMD}"
 }

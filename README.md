@@ -21,7 +21,7 @@ SAS_lsm 4.0 adds the following features and improvements:
 
 ### Installation
 
-Refer to detailed installation documentation [here](http://toothless.unx.sas.com). 
+Refer to detailed installation documentation provided in package as **Install-Update-Guide.pdf**. 
 
 ### Running
 

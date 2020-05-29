@@ -2,8 +2,7 @@
 # Copyright © 2020, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# SAS_lsm Utility: Version 3.0
-# EDIT ABOVE LINE TO 4.0.0 ONCE APPROVED FOR GITHUB - LEAVE UNTIL THEN AS VERCHECK DEPENDS ON IT
+# SAS_lsm Utility: Version 4.0.0
 #
 # This script automates the management of UNIX/Linux based multi-tiered services.
 # Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates

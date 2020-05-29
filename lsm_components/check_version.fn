@@ -4,8 +4,8 @@ function check_version
 # notify user if the version being executed is out of date
 
 #call website to detemine newest version
-UPDATEURL="http://support.sas.com/kb/58/231.html"
-WEBVERSION=$(curl -v --silent ${UPDATEURL} 2>&1 | grep "The current release" | sed 's/[^0-9.]*//g' | sed 's/\.$//')
+UPDATEURL="https://api.github.com/repos/sassoftware/sas-lsm/releases/latest"
+WEBVERSION=$(curl -v --silent ${UPDATEURL} 2>&1 | grep '"tag_name":' | sed 's/[^0-9.]*//g' | sed 's/\.$//')
 
 #read the top of the SAS_lsm script to determine the current version
 #presently we read the first 30 lines of the script, already excessive but safe for future additions, change the head command if we need to read more
