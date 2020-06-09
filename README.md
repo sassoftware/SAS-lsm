@@ -9,7 +9,6 @@ The  SAS_lsm utility provides consistent management of single- or multi-tiered S
 SAS_lsm 4.0 adds the following features and improvements:
 
 * UserExit Management - Provides a framework for execution of arbitrary scripts based on result status of a tier's action execution. 
-* SystemD Integration - SAS_lsm can integrate with SystemD to prevent unintended service disruptions as a result of OS-level reboots or other actions.
 * Offline Host Status Checking - Improvements to the status action have been added to improve usability of status checks when host(s) cannot be reached via SSH.
 * Automatic Check for Updates - If a network connection is available, SAS_lsm will attempt to check the most recent version of the utility available. A notice will be displayed to the user if the execution version is out-of-date.
 * Configuration File Wizard - The "Utilities" subdirectory in the SAS_lsm repository now offers a guided wizard to help generate basic multi-machine configuration files. These files can be used as a template for further manual modifications on complex deployment architectures.
