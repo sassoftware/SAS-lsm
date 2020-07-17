@@ -3,6 +3,7 @@
 # MAKE LSM FILE
 #
 # Version 1.0: 11 December 2019. Produced by Andy Foreman.
+# Version 1.1: 17 July 2020. Produced by Andy Foreman. Added read of version from built file and reminder message to support Git deployment and version-check strategy.
 ##########
 # This is a development utility to build the SAS_lsm master script file.
 # Not intended for use by end-customers. It can be safely ignored or deleted.
@@ -52,3 +53,9 @@ find $dirname/lsm_components/ | grep main.main | while read filename; do
 done
 
 echo "File has been built and saved at path: $pwd/$outfile"
+echo ""
+CURRVERSION=$(head -q -n 30 "${pwd}/${outfile}" | grep "SAS_lsm Utility: Version" | sed 's/[^0-9.]*//g' | sed 's/\.$//')
+echo "New build version is marked as ${CURRVERSION}"
+echo "If you are planning on making a new RELEASE PACKAGE for this build, check that you have updated lsm_components/header.txt to increment the build version over current release!!!"
+
+

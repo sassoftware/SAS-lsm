@@ -312,19 +312,24 @@ function cleanup
 	  then	echo "" | tee -a ${REPORT}
 		echo "           If you would like to open a SAS problem report, please review ${LOGFILESANALYSIS} for helpful information" | tee -a ${REPORT}
 	fi
-	if [ "${ACTION}" = "status" ]
-	  then	if [ ${LASTACTION} = "start" ]
-		  then	if [ ${TRC} -eq 1 ] 
-	  	  	  then	MAILADMIN=yes
-				STATUS=FAILURE
-			fi
-		  else	TRC=${LASTACTIONRC}
-		fi
-		echo "${LASTACTION}:${TRC}" > ${STATUSDIR}/.lastaction
-	  else	MAILADMIN=yes
-		echo "${ACTION}:${DRC}" > ${STATUSDIR}/.lastaction
-	fi
-	echo "" | tee -a ${REPORT}
+	if [ "${ACTION}" = "status" ] #this IF statement contents could be reorganized to save a duplicated IF nest by having TRC check before LASTACTION check?
+          then  if [ ${LASTACTION} = "start" ]
+                  then  if [ ${TRC} -eq 1 ]
+                          then  MAILADMIN=yes
+                                STATUS=FAILURE
+                        fi
+                  else
+                    if [ ${TRC} -eq 1 ] #added 17jul20 to always send an email on failed status check regardless of lastaction state
+                      then MAILADMIN=yes
+                           STATUS=FAILURE
+                    fi
+                    TRC=${LASTACTIONRC}
+                fi
+                echo "${LASTACTION}:${TRC}" > ${STATUSDIR}/.lastaction
+          else  MAILADMIN=yes
+                echo "${ACTION}:${DRC}" > ${STATUSDIR}/.lastaction
+        fi
+        echo "" | tee -a ${REPORT}
 	echo "" | tee -a ${REPORT}
 	if [ ! -z "${POBAD}" ]
 	  then if [ "${ACTION}" = "status" ]
