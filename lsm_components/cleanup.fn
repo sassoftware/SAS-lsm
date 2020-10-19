@@ -72,6 +72,11 @@ function cleanup
 	  then	mailx -s "`date` ${PROG} ${STATUS} ${ACTION} ${CFGFILE##*/}" ${SASADMIN} < ${REPORT} 
 	fi
 	lhf
+        if [ "${ARCHIVEDLOGS}" = "enabled" ] 
+          then if [ "${ACTION}" = "start" ] || [ "${ACTION}" = "stop" ]
+                 then create_timestamped_log
+               fi
+        fi
 	rm -f ${OUTFILE} ${TMPFILE1} ${TMPFILE2} ${TMPFILE3} ${STATUSDIR}/SDW*  >/dev/null 2>&1
 	echo "${MSG}" 
 	echo "" 

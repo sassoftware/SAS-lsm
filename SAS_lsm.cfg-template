@@ -30,6 +30,17 @@ TRIMOFFSET=1
 ## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE 
 #SASADMIN="ADDRESS1 ADDRESS2 ADDRESSN"  
 
+## OPTIONAL: LOCAL SSH OVERRIDE
+## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE
+## CHANGE bypass to override to FORCE SSH TUNNEL ON LOCALHOST
+#LOCALSSH=bypass
+
+## OPTIONAL: ARCHIVED LOGS OF START/STOP ACTIONS
+## REMOVE # in COLUMN 1 OF THE VARIABLE TO ACTIVATE
+## CHANGE disabled to enabled to ALLOW ARCHIVED LOGGING
+#ARCHIVEDLOGS=disabled
+
+
 ## END MISCELLANEOUS VARIABLES
 ##########################################################################################################################################
 

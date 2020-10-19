@@ -1,0 +1,9 @@
+function create_timestamped_log
+{
+   TIMESTAMP=`date +"%Y-%m-%d-%H.%M.%S"`
+   STATUSARCHIVE=${STATUSDIR}/archive
+   if [ ! -d ${STATUSDIR}/archive ]
+     then mkdir ${STATUSDIR}/archive
+   fi
+   cat ${REPORT} > ${STATUSARCHIVE}/${TIMESTAMP}.report.${ACTION}
+}

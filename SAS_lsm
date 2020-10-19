@@ -2,7 +2,7 @@
 # Copyright © 2020, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# SAS_lsm Utility: Version 4.0.0
+# SAS_lsm Utility: Version 4.0.1
 #
 # This script automates the management of UNIX/Linux based multi-tiered services.
 # Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
@@ -24,7 +24,8 @@
 # 2020-04-29  Andy J. Foreman           v4.0 add config-file generation wizard
 # 2020-04-29  Andy J. Foreman           v4.0 add make utility to build SAS_lsm from functions
 # 2020-04-29  Andy J. Foreman           v4.0 add userExit framework debugging utilities
-#
+# 2020-10-16  Greg W. Arledge           v4.0.1 add optional timestamped report for start/stop actions
+
 function create_BOM
 {
         STATUSFAILTIERS+=" ${TIER}"
@@ -343,6 +344,11 @@ function cleanup
 	  then	mailx -s "`date` ${PROG} ${STATUS} ${ACTION} ${CFGFILE##*/}" ${SASADMIN} < ${REPORT} 
 	fi
 	lhf
+        if [ "${ARCHIVEDLOGS}" = "enabled" ] 
+          then if [ "${ACTION}" = "start" ] || [ "${ACTION}" = "stop" ]
+                 then create_timestamped_log
+               fi
+        fi
 	rm -f ${OUTFILE} ${TMPFILE1} ${TMPFILE2} ${TMPFILE3} ${STATUSDIR}/SDW*  >/dev/null 2>&1
 	echo "${MSG}" 
 	echo "" 
@@ -836,6 +842,15 @@ function stripsshiflocal
           fi
         fi
         echo "${CMD}"
+}
+function create_timestamped_log
+{
+   TIMESTAMP=`date +"%Y-%m-%d-%H.%M.%S"`
+   STATUSARCHIVE=${STATUSDIR}/archive
+   if [ ! -d ${STATUSDIR}/archive ]
+     then mkdir ${STATUSDIR}/archive
+   fi
+   cat ${REPORT} > ${STATUSARCHIVE}/${TIMESTAMP}.report.${ACTION}
 }
 function status_services 
 {
