@@ -50,7 +50,6 @@ The usage function inside SAS_lsm describes how to use the utility. A basic vers
 We welcome your contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to submit contributions to this project.
 
 * Please contribute changes on a function-based level. Update or add functions as found in the repository's "lsm_components" subdirectory. Use the make_lsm.bash script (in the repository root) to combine all function files to a master SAS_lsm script before pushing changes.
-* Refer to the developer's section of the documentation [here](http://toothless.unx.sas.com) for repository management and usage details.
 
 ## License
 
