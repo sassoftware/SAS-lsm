@@ -6,7 +6,7 @@ function run_ue_cmd
         fi
         eval ${CMD} >${OUTFILE} 2>&1
         UEFLAG=$?  #Flag variable to save return code of the current user-defined script
-        #echo "${UEFLAG}"
+        #echo "[DEBUG] UserExit Script rc: ${UEFLAG}"
         if [[ ! ${SCRIPTLIST[$i]} =~ "_required_" ]]
           then #echo "Not Required"
                DRC=0

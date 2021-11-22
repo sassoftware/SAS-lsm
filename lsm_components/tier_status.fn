@@ -4,6 +4,10 @@ function tier_status
         ((TRY=1))
 	UPTOKEN=${TIERSTAS[$TSTIER]}
 	DOWNTOKEN=${TIERSTOS[$TSTIER]}
+	if [ ! -z ${TIEX} ]
+                  then userExit_management pre
+                  else printf "  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"                    
+        fi
         CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
         run_cmd
         while [ ${TRY} -le ${MAXRETRY} ] && [ ${DRC} -ne 0 ]
@@ -17,7 +21,7 @@ function tier_status
 	  then	echo "  <<TIER STATUS>> ALL tier services are operational" | tee -a ${REPORT}
 	  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -gt 0 ]
 		  then	echo "  <<TIER STATUS>> ALL tier services are NOT operational" | tee -a ${REPORT}
-		  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -eq 0 ]
+                  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -eq 0 ]
 	  	  	  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
 				UNKNOWN=true
 			  else	echo "  <<TIER STATUS>> ALL tier services are NOT fully operational" | tee -a ${REPORT}
@@ -39,4 +43,9 @@ function tier_status
 	do
 	  	echo "                  ${TOKENRECORD}" | tee -a ${REPORT}
 	done
+        if [ ! -z ${TIEX} ]
+             then echo ""
+                  userExit_management post
+             else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+        fi
 }

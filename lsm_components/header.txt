@@ -1,8 +1,8 @@
 #
-# Copyright © 2020, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
+# Copyright © 2021, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# SAS_lsm Utility: Version 4.0.1
+# SAS_lsm Utility: Version 4.1.0
 #
 # This script automates the management of UNIX/Linux based multi-tiered services.
 # Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
@@ -25,4 +25,7 @@
 # 2020-04-29  Andy J. Foreman           v4.0 add make utility to build SAS_lsm from functions
 # 2020-04-29  Andy J. Foreman           v4.0 add userExit framework debugging utilities
 # 2020-10-16  Greg W. Arledge           v4.0.1 add optional timestamped report for start/stop actions
+# 2021-11-08  Greg W. Arledge           v4.1 include support for Platform LSF control script
+# 2021-11-08  Andy J. Foreman           v4.1 update config-file generation wizard for user-friendly messaging
+# 2021-11-08  Andy J. Foreman           v4.1 add userExit capabilities for status-check function
 

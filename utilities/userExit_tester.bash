@@ -1,7 +1,7 @@
 #!/bin/bash
 #userExit Management Tester script
 #derived from userExit_management function of SAS_lsm
-# v. 1.0.0 (based on SAS_lsm 4.0.0 source) by Andy Foreman        
+# v. 1.0.1 (based on SAS_lsm 4.1.0 source) by Andy Foreman. Identical to 1.0.0, validated 11/22/2021 still functional.        
 
         TIEX=$1 #location of UserExit scripts
         UETYPE=$2  #pre or post

@@ -3,6 +3,7 @@
 # SAS_lsm CONFIGURATION FILE WIZARD
 #
 # Version 1.0: 12 Sept 2019. Produced by Greg Arledge and Andy Foreman.
+# Version 1.0.1: 22 Nov 2021. Updated by Andy Foreman. Added catch if user-specified path DIR not FILE.
 ##########
 #
 # Use this utility for guided assistance on creating the SAS_lsm configuration file.
@@ -103,7 +104,11 @@ function gatherInfoMisc ()
 function checkFile () {
 
 currentDate=`date "+%FT%T"` #obtain executing date-time in format <YYYY-MM-DD>T<HH:MM:SS>
-
+if [[ "${outputFile}" = *\/ ]]; then #if user told us they wanted a cfg file at a directory but did not tell us a filename
+	echo "The end of the output file specified is a forward slash. This is typically used as a directory separator character."
+	echo "If you are seeing this message, you likely specified a directory path without a file name. Please retry and specify a full path to a file."
+	exit 1
+fi
 if [[ -f "${outputFile}" ]]; then
         echo "A file already exists at the path ${outputFile}."
         echo "The current file will be backed up as ${outputFile}_${currentDate}.bak, then overwritten."

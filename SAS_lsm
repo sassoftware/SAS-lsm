@@ -1,8 +1,8 @@
 #
-# Copyright © 2020, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
+# Copyright © 2021, SAS Institute Inc., Cary, NC, USA.  All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# SAS_lsm Utility: Version 4.0.1
+# SAS_lsm Utility: Version 4.1.0
 #
 # This script automates the management of UNIX/Linux based multi-tiered services.
 # Please refer to SASNote http://support.sas.com/kb/58/231.html for details and updates
@@ -25,6 +25,9 @@
 # 2020-04-29  Andy J. Foreman           v4.0 add make utility to build SAS_lsm from functions
 # 2020-04-29  Andy J. Foreman           v4.0 add userExit framework debugging utilities
 # 2020-10-16  Greg W. Arledge           v4.0.1 add optional timestamped report for start/stop actions
+# 2021-11-08  Greg W. Arledge           v4.1 include support for Platform LSF control script
+# 2021-11-08  Andy J. Foreman           v4.1 update config-file generation wizard for user-friendly messaging
+# 2021-11-08  Andy J. Foreman           v4.1 add userExit capabilities for status-check function
 
 function create_BOM
 {
@@ -574,10 +577,10 @@ function initialize
 {
 	cd ${DIR}
 	CHECK=`echo "${PWD}" | grep -c "Utilities"`
-	if [ ${CHECK} -ne 0 ]
-	  then	echo "<<ERROR>> cannot execute ${PROG} from directory [${PWD}]"
-		exit 1
-	fi
+	#if [ ${CHECK} -ne 0 ] #disabled 23 Dec 2020 by Andy Foreman, no longer require prevent deploy in sasconfig/Lev1/Utilities
+	#  then	echo "<<ERROR>> cannot execute ${PROG} from directory [${PWD}]"
+	#	exit 1
+	#fi
 	cd - >/dev/null 2>&1
 	operating_system_customize
 	if [ $(whoami) = "root" ]
@@ -887,6 +890,10 @@ function tier_status
         ((TRY=1))
 	UPTOKEN=${TIERSTAS[$TSTIER]}
 	DOWNTOKEN=${TIERSTOS[$TSTIER]}
+	if [ ! -z ${TIEX} ]
+                  then userExit_management pre
+                  else printf "  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"                    
+        fi
         CMD="ssh ${SSHOPTIONS} ${INST}@${HOST} ${STAT}"
         run_cmd
         while [ ${TRY} -le ${MAXRETRY} ] && [ ${DRC} -ne 0 ]
@@ -900,7 +907,7 @@ function tier_status
 	  then	echo "  <<TIER STATUS>> ALL tier services are operational" | tee -a ${REPORT}
 	  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -gt 0 ]
 		  then	echo "  <<TIER STATUS>> ALL tier services are NOT operational" | tee -a ${REPORT}
-		  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -eq 0 ]
+                  else	if [ ${UPCOUNT} -eq 0 -a ${DOWNCOUNT} -eq 0 ]
 	  	  	  then	echo "  <<TIER STATUS>> unable to determine tier status" |  tee -a ${REPORT}
 				UNKNOWN=true
 			  else	echo "  <<TIER STATUS>> ALL tier services are NOT fully operational" | tee -a ${REPORT}
@@ -922,6 +929,11 @@ function tier_status
 	do
 	  	echo "                  ${TOKENRECORD}" | tee -a ${REPORT}
 	done
+        if [ ! -z ${TIEX} ]
+             then echo ""
+                  userExit_management post
+             else printf "\n  <<USEREXITS>> TIEREXIT Location Not Specified For This Tier -- Continuing\n\n"
+        fi
 }
 function build_track_details
 {
@@ -1123,7 +1135,7 @@ function run_ue_cmd
         fi
         eval ${CMD} >${OUTFILE} 2>&1
         UEFLAG=$?  #Flag variable to save return code of the current user-defined script
-        #echo "${UEFLAG}"
+        #echo "[DEBUG] UserExit Script rc: ${UEFLAG}"
         if [[ ! ${SCRIPTLIST[$i]} =~ "_required_" ]]
           then #echo "Not Required"
                DRC=0
