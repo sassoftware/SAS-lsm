@@ -6,12 +6,12 @@ The  SAS_lsm utility provides consistent management of single- or multi-tiered S
 
 ### What's New
 
-SAS_lsm 4.0 adds the following features and improvements:
+SAS_lsm 4.1 adds the following features and improvements:
 
-* UserExit Management - Provides a framework for execution of arbitrary scripts based on result status of a tier's action execution. 
-* Offline Host Status Checking - Improvements to the status action have been added to improve usability of status checks when host(s) cannot be reached via SSH.
-* Automatic Check for Updates - If a network connection is available, SAS_lsm will attempt to check the most recent version of the utility available. A notice will be displayed to the user if the execution version is out-of-date.
-* Configuration File Wizard - The "Utilities" subdirectory in the SAS_lsm repository now offers a guided wizard to help generate basic multi-machine configuration files. These files can be used as a template for further manual modifications on complex deployment architectures.
+* UserExit Management - Add capabilities to allow UserExit scripts to be called pre- or post- STATUS checks on a tier. 
+* Platform LSF GRID Support - Deliver utility script to easily enable integration with Platform LSF GRID deployments.
+* Configuration File Wizard - Logic updates to check and catch additional user-errors when running the Wizard.
+* Documentation - Denote considerations when running SAS_lsm regularly via CRON or schedulers.
 
 ### Prerequisites
 
