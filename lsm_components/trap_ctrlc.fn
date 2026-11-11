@@ -1,4 +1,0 @@
-function trap_ctrlc
-{
-    ANSWER=${CTR}
-}

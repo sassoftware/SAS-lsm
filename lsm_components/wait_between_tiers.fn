@@ -1,7 +1,0 @@
-function wait_between_tiers
-{
-
-  STARTDELAY=15
-  sleep $STARTDELAY
-
-}

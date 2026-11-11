@@ -1,0 +1,33 @@
+# SAS_lsm 5 - typical three-tier SAS 9.4 deployment:
+# metadata server -> compute (two hosts) -> middle tier.
+version: 1
+
+settings:
+  status_root: /var/tmp/sas_lsm
+  admin_email: [sasadmin@example.com]   # needs mailx on the controller
+  collect_logs: true                    # gather logs + support bundle on failure
+
+defaults:
+  user: sas                             # SAS installer account on every host
+  configdir: /opt/sas/config/Lev1
+  retries: 10                           # status checks while waiting
+  retry_interval: 6                     # seconds between checks
+  tier_delay: 15                        # pause after each tier is UP
+
+tiers:
+  - name: metadata
+    type: sas-servers                   # the default type; shown for clarity
+    hosts: [sasmeta01.example.com]
+
+  - name: compute
+    hosts: [sascomp01.example.com, sascomp02.example.com] #comma-separate list if multiple
+    parallel: false                      # if true, would run in parallel on both compute hosts at once (you can only do this if there's not a WIPDS)
+    userexits:
+      pre_stop:
+        - /opt/sas/utilities/userexits/notify_users.sh
+
+  - name: midtier
+    hosts: [sasmid01.example.com]
+    configdir: /opt/sas/configmid/Lev1  # this tier only; nothing carries over
+    retries: 150                        # web application servers start slowly
+    command_timeout: 1800

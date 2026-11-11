@@ -1,0 +1,46 @@
+# SAS_lsm 5 - metadata cluster, SAS Grid Manager for Platform Suite (LSF),
+# grid compute nodes and a middle tier.
+version: 1
+
+settings:
+  status_root: /var/tmp/sas_lsm
+  collect_logs: true
+
+defaults:
+  user: sas
+  configdir: /opt/sas/config/Lev1
+
+tiers:
+  - name: metadata
+    type: metadata-cluster              # 3+ nodes; quorum rules are built in
+    hosts: [meta1, meta2, meta3]
+
+  - name: lsf
+    type: lsf-grid
+    parallel: true                      # start/stop/check nodes in parallel
+    lsf:
+      master: gridctl
+      nodes: [node1, node2, node3]
+      envdir: /opt/sas/lsf/conf                                   # has profile.lsf
+      serverdir: /opt/sas/lsf/10.1/linux2.6-glibc2.3-x86_64/etc   # LSF daemons
+      pm_host: gridctl                                            # optional
+      pm_envdir: /opt/sas/pm/conf                                 # has profile.js
+      pm_serverdir: /opt/sas/pm/10.2/linux2.6-glibc2.3-x86_64/etc
+      ego_controls_daemons: false       # true if EGO starts res and sbatchd
+      sudo: true                        # LSF daemons run as root (sudo -n)
+
+  - name: grid-compute
+    hosts: [gridctl, node1, node2, node3]
+    parallel: true
+    userexits:
+      post_start_success:
+        - run: /opt/sas/utilities/userexits/start_deployment_agent.sh
+          on: all                       # run on every host of this tier
+      pre_stop:
+        - run: /opt/sas/utilities/userexits/drain_grid_jobs.sh
+          required: true                # stop the whole run if this fails
+
+  - name: midtier
+    hosts: [mid1]
+    retries: 150
+    command_timeout: 1800

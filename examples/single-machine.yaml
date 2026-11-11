@@ -1,0 +1,14 @@
+# SAS_lsm 5 - single-machine SAS 9.4 deployment.
+# Everything runs on this host as this user, so no SSH setup is needed.
+version: 1
+
+settings:
+  status_root: /var/tmp/sas_lsm
+
+defaults:
+  user: sas
+  configdir: /opt/sas/config/Lev1
+
+tiers:
+  - name: sas
+    hosts: [localhost]

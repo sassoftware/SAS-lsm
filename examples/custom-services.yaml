@@ -1,0 +1,31 @@
+# SAS_lsm 5 - custom tiers: a SAS LASR (MPP) server and a third-party
+# service controlled by its own script. Replace the paths for your site.
+version: 1
+
+defaults:
+  user: sas
+  configdir: /opt/sas/config/Lev1
+
+tiers:
+  - name: compute
+    hosts: [sascomp01]
+
+  - name: lasr-10010
+    type: custom
+    hosts: [lasrhead01]
+    start:  "/opt/sas/SASHome/SASFoundation/9.4/sas /usr/local/etc/SAS/LASR/mpp_start.sas -log /usr/local/etc/SAS/LASR/logs/10010 -sysparm 10010"
+    stop:   "/opt/sas/SASHome/SASFoundation/9.4/sas /usr/local/etc/SAS/LASR/mpp_stop.sas -log /usr/local/etc/SAS/LASR/logs/10010 -sysparm 10010"
+    status: "/opt/sas/SASHome/SASFoundation/9.4/sas /usr/local/etc/SAS/LASR/mpp_checklasr.sas -log /usr/local/etc/SAS/LASR/logs/10010 -sysparm 10010"
+    up_pattern: "LASR UP"
+    down_pattern: "LASR DOWN"
+    logdir: /usr/local/etc/SAS/LASR/logs
+
+  - name: example-app
+    type: custom
+    hosts: [app01]
+    user: appadm
+    start:  "/opt/app/bin/appctl start"
+    stop:   "/opt/app/bin/appctl stop"
+    status: "/opt/app/bin/appctl status"
+    up_pattern: "is running"
+    down_pattern: "is not running|is stopped"
