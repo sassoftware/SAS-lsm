@@ -7,8 +7,11 @@ SAS_lsm provides consistent start, stop and status management for single-tier an
 ### What's New
 
 Version 5 is a modernization of SAS-lsm.
+
 The code of SAS-lsm version 4.1.0 was rewritten in Go using automated tools. The core features of SAS-lsm version 4.1.0 are all supported in SAS-lsm version 5.0.0.
+
 The user configuration was simplified and utilities were added to make initial setup easier.
+
 The configuration file was updated to use a standard YAML syntax instead of a custom-defined format. Converter functions have been made available to permit migration from existing systems where SAS-lsm version 4.x is in use.
 
 Notable updates with SAS-lsm version 5.0.0:
