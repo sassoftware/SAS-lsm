@@ -27,7 +27,6 @@ Notable updates with SAS-lsm version 5.0.0:
 ### Prerequisites / System Requirements
 
 * Key-based SSH authentication (also known as "passwordless SSH") is required. SSH used to communicate from the controller (where you run SAS_lsm) to other nodes. The system-default SSH libraries are used. SAS_lsm can help set up the SSH keys between your machines, if this is not already configured.
-* Go (version 1.21+) is required to run SAS_lsm.
 * The BASH shell is required for one-time use when converting a legacy SAS_lsm configuration file.
 
 ### Quick Start
@@ -57,7 +56,9 @@ Further, detailed documentation is available in **[docs/SAS_lsm5-Install-Usage-G
 ### Usage
 
 `sas-lsm start -c <configfile.yaml>`      Start all tiers
+
 `sas-lsm stop -c <configfile.yaml>`       Stop all tiers
+
 `sas-lsm status -c <configfile.yaml>`     Show the current state of services (on all tiers)
 
 Run the command `sas_lsm --help` for additional usage examples.
